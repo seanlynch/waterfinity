@@ -56,6 +56,63 @@ local drain = {}
 local empty, air = {}, {name = "air"}
 local nop = function () end
 
+local function searchSpread(pos, depth, ctx)
+    ctx = ctx or {sum = 0, max = 0, min = 8, spreads = {}, [pString(pos)] = true}
+    depth = depth or 4
+    
+    local node = get(pos)
+    local name = node.name
+    local def = defs[name] or empty
+    
+    if not ctx.name then ctx.name = name end
+    
+    pos.y = pos.y - 1
+    local belowNode = get(pos)
+    local belowLevel = getLevel(pos)
+    local belowName = belowNode.name
+    local belowDef = defs[belowName] or empty
+    pos.y = pos.y + 1
+    
+    if name == ctx.name then
+        local level = getLevel(pos)
+        ctx.sum = ctx.sum + level
+        ctx.max = max(ctx.max, level)
+        ctx.min = min(ctx.min, level)
+    elseif name == def._waterminus_source then
+        ctx.sum = math.huge
+        return
+    elseif not def.floodable then
+        return ctx
+    else
+        ctx.min = 0
+    end
+    
+    insert(ctx.spreads, {x = pos.x, y = pos.y, z = pos.z})
+    if depth <= 0 then return ctx end
+    
+    if def.floodable and belowName ~= ctx.name then
+        return ctx
+    end
+    if belowDef.floodable or belowName == ctx.name and belowLevel < 7 then
+        return ctx
+    end
+    
+    local perm = permutations[random(1, 24)]
+    for i = 1, 4 do
+        local vec = cardinals[perm[i]]
+        pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+        
+        local pstr = pString(pos)
+        if not ctx[pstr] then
+            ctx[pstr] = true
+            searchSpread(pos, depth - 1, ctx)
+        end
+        
+        pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+    end
+    
+    return ctx
+end
 local function searchDrain(pos)
     local found = {[pString(pos)] = true}
     local queue = {x = pos.x, y = pos.y, z = pos.z, depth = 0}
@@ -121,24 +178,24 @@ local function update(pos, depth)
 end
 waterminus.update = update
 
-if bucket then
-    local function check_protection(pos, name, text)
-        if minetest.is_protected(pos, name) then
-            minetest.log("action", (name ~= "" and name or "A mod")
-                .. " tried to " .. text
-                .. " at protected position "
-                .. minetest.pos_to_string(pos)
-                .. " with a bucket")
-            minetest.record_protection_violation(pos, name)
-            return true
-        end
-        return false
+local function check_protection(pos, name, text)
+    if minetest.is_protected(pos, name) then
+        minetest.log("action", (name ~= "" and name or "A mod")
+            .. " tried to " .. text
+            .. " at protected position "
+            .. minetest.pos_to_string(pos)
+            .. " with a bucket")
+        minetest.record_protection_violation(pos, name)
+        return true
     end
-    
+    return false
+end
+
+local pointSupport = minetest.features.item_specific_pointabilities
+local pointabilities = {nodes = {["group:waterminus"] = true}}
+
+if bucket then
     local on_use = itemDefs["bucket:bucket_empty"].on_use
-    local pointSupport = minetest.features.item_specific_pointabilities
-    local pointabilities = {nodes = {["group:waterminus"] = true}}
-    
     minetest.override_item("bucket:bucket_empty", {
         pointabilities = pointabilities,
         on_use = function(itemstack, user, pointed_thing)
@@ -314,7 +371,7 @@ function waterminus.register_liquid(liquidDef)
                 set(pos, air)
             end
             update(pos)
-        else--if myLevel == 1 then
+        elseif myLevel == 1 then
             pos.y = pos.y + 1
             
             local dir = (searchDrain(pos) or empty).dir
@@ -328,79 +385,15 @@ function waterminus.register_liquid(liquidDef)
                 
                 return
             end
-        --elseif myLevel > 1 then
-            --pos.y = pos.y + 1
+        else
+            pos.y = pos.y + 1
             
-            local start = {x = pos.x, y = pos.y, z = pos.z}
-            local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
-            local requireFlooding = false
+            local ctx = searchSpread(pos)
+            local sum, spreads, diff = ctx.sum, ctx.spreads, ctx.max - ctx.min
             
-            local perm = permutations[random(1, 24)]
-            for i = 1, 4 do
-                local vec = cardinals[perm[i]]
-                pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
-                
-                pos.y = pos.y - 1
-                local belowNode = get(pos)
-                local belowLevel = getLevel(pos)
-                local belowName = belowNode.name
-                local belowDef = defs[belowName] or empty
-                pos.y = pos.y + 1
-                
-                local name = get(pos).name
-                local def = defs[name] or empty
-                
-                if not requireFlooding or belowDef.floodable then
-                    --[[if not requireFlooding and belowDef.floodable then
-                        minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
-                        requireFlooding = true
-                    end]]
-                    if name == flowing then
-                        local level = getLevel(pos)
-                        sum = sum + level
-                        maxlvl = max(maxlvl, level)
-                        minlvl = min(minlvl, level)
-                        insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
-                    elseif def.floodable then
-                        minlvl = 0
-                        insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
-                    end
-                end
-                
-                pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-            end
-            
-            if maxlvl - minlvl < 2 then
-                local swaps = {}
-                local perm = permutations[random(1, 24)]
-                for i = 1, 4 do
-                    local vec = cardinals[perm[i]]
-                    pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
-                    
-                    local neighNode = get(pos)
-                    local neighName = neighNode.name
-                    local neighDef = defs[neighName] or empty
-                    
-                    if neighName == myNode.name and myLevel - getLevel(pos) == 1 then
-                        local newNeighLvl = getLevel(pos)
-                        swap(pos, {name = myNode.name})
-                        setLevel(pos, myLevel)
-                        update(pos)
-                        
-                        pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-                        set(pos, neighNode)
-                        setLevel(pos, newNeighLvl)
-                        if newNeighLvl == 0 then
-                            set(pos, air)
-                        end
-                        update(pos)
-                        return
-                    end
-                    
-                    pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-                end
-                
-                return
+            if diff < 2 then return end
+            if sum == math.huge then
+                sum = #spreads * 7
             end
             
             local average, leftover = floor(sum / #spreads), sum % #spreads
@@ -424,27 +417,7 @@ function waterminus.register_liquid(liquidDef)
     
     minetest.override_item(flowing, extra)
     
-    
     if bucket and liquidDef.bucket then
-        -- Modified code from bucket mod for support
-        
-        local function check_protection(pos, name, text)
-            if minetest.is_protected(pos, name) then
-                minetest.log("action", (name ~= "" and name or "A mod")
-                    .. " tried to " .. text
-                    .. " at protected position "
-                    .. minetest.pos_to_string(pos)
-                    .. " with a bucket")
-                minetest.record_protection_violation(pos, name)
-                return true
-            end
-            return false
-        end
-        
-        local on_use = itemDefs["bucket:bucket_empty"].on_use
-        local pointSupport = minetest.features.item_specific_pointabilities
-        local pointabilities = {nodes = {["group:waterminus"] = true}}
-        
         for i = 1, 7 do
             minetest.register_craftitem(liquidDef.bucket .. "_" .. i, {
                 description = ("%s (%s/7)"):format(liquidDef.bucket_desc, i),
@@ -608,7 +581,7 @@ if default then
         liquid_alternative_source = "waterminus:spring",
         liquid_alternative_flowing = "waterminus:water",
         
-        post_effect_color = {r = 30, g = 60, b = 90, a = 103},
+        post_effect_color = {r = 30, g = 70, b = 90, a = 103},
         
         on_blast = function (pos, intensity) end,
         sounds = default.node_sound_water_defaults()
@@ -640,7 +613,7 @@ if default then
         liquid_alternative_source = "waterminus:spring",
         liquid_alternative_flowing = "waterminus:water",
         
-        post_effect_color = {r = 30, g = 60, b = 90, a = 103},
+        post_effect_color = {r = 30, g = 70, b = 90, a = 103},
         
         on_blast = function (pos, intensity) end,
         sounds = default.node_sound_water_defaults()
@@ -730,7 +703,7 @@ if default then
     local getBiomeName, id = minetest.get_biome_name, minetest.get_content_id
     local waterFlowingID, waterID, springID, airID = id("default:water_flowing"), id("waterminus:water"), id("waterminus:spring"), id("air")
     local lavaFlowingID, lavaID = id("default:lava_flowing"), id("waterminus:lava")
-    local equivalents = {[id("mapgen_water_source")] = springID, [id("default:lava_source")] = lavaID}
+    local equivalents = {[id("mapgen_water_source")] = minetest.settings:get_bool("waterminus_ocean_springs") ~= false and springID or waterID, [id("default:lava_source")] = lavaID}
     
     minetest.register_on_generated(function (minp, maxp, seed)
         local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
@@ -748,22 +721,20 @@ if default then
             for z = minp.z, maxp.z do
                 for y = minp.y, maxp.y do
                     local index = area:index(x, y, z)
-                    
-                    if equivalents[data[index]] then
-                        data[index] = equivalents[data[index]]
+                    local block = data[index]
+                    if equivalents[block] then
+                        data[index] = equivalents[block]
                         paramData[index] = 7
                         for _, vec in ipairs(naturalFlows) do
-                            x, y, z = x + vec.x, y + vec.y, z + vec.z
+                            local nx, ny, nz = x + vec.x, y + vec.y, z + vec.z
+                            local nIndex = area:index(nx, ny, nz)
                             
-                            local index = area:index(x, y, z)
-                            local def = defs[minetest.get_name_from_content_id(data[index])] or empty
-                            if data[index] == airID or def.liquidtype == "flowing" then
-                                local biome = biomeMap and biomeMap[area:index(x, y, z)]
+                            local def = defs[minetest.get_name_from_content_id(data[nIndex])] or empty
+                            if data[nIndex] == airID or def.liquidtype == "flowing" then
+                                local biome = biomeMap and biomeMap[nIndex]
                                 local biomeDef = biome and minetest.registered_biomes[getBiomeName(biome)] or empty
-                                data[index] = id(biomeDef.node_stone or "mapgen_stone")
+                                data[nIndex] = id(biomeDef.node_stone or "mapgen_stone")
                             end
-                            
-                            x, y, z = x - vec.x, y - vec.y, z - vec.z
                         end
                     end
                 end

@@ -1,6 +1,6 @@
 # Waterminus
 
-Finite water flow for modern Minetest
+Finite liquids or modern Minetest.
 
 ## Physics
 
@@ -8,6 +8,10 @@ Finite water flow for modern Minetest
 * *Flowing* liquid tries to even out with its neighbours.
 * Single-layer liquid runs towards holes up to 3 blocks away.
 * Almost even liquid (1 layer difference) diffuses randomly if it is not nearly empty, so all bodies even out "eventually".
+
+## Mod support
+
+Custom buckets are supported with basic liquid pickup/place physics. Perfect liquid pointing will have to wait for 5.9.0 `pointabilities`.
 
 ## Usage
 

@@ -1,0 +1,3 @@
+# Makes oceans use an infinite water 'spring'.
+# May be less demanding with ocean holes.
+waterminus_ocean_springs (Infinite oceans) bool true
