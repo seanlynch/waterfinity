@@ -58,7 +58,7 @@ local nop = function () end
 
 local function searchSpread(pos, depth, ctx)
     ctx = ctx or {sum = 0, max = 0, min = 8, spreads = {}, [pString(pos)] = true}
-    depth = depth or 4
+    depth = depth or 2
     
     local node = get(pos)
     local name = node.name
@@ -388,10 +388,77 @@ function waterminus.register_liquid(liquidDef)
         else
             pos.y = pos.y + 1
             
-            local ctx = searchSpread(pos)
-            local sum, spreads, diff = ctx.sum, ctx.spreads, ctx.max - ctx.min
+            local start = {x = pos.x, y = pos.y, z = pos.z}
+            local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
+            local requireFlooding = false
             
-            if diff < 2 then return end
+            local perm = permutations[random(1, 24)]
+            for i = 1, 4 do
+                local vec = cardinals[perm[i]]
+                pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+                
+                pos.y = pos.y - 1
+                local belowNode = get(pos)
+                local belowLevel = getLevel(pos)
+                local belowName = belowNode.name
+                local belowDef = defs[belowName] or empty
+                pos.y = pos.y + 1
+                
+                local name = get(pos).name
+                local def = defs[name] or empty
+                
+                if not requireFlooding or belowDef.floodable then
+                    --[[if not requireFlooding and belowDef.floodable then
+                        minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
+                        requireFlooding = true
+                    end]]
+                    if name == flowing then
+                        local level = getLevel(pos)
+                        sum = sum + level
+                        maxlvl = max(maxlvl, level)
+                        minlvl = min(minlvl, level)
+                        insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
+                    elseif def.floodable then
+                        minlvl = 0
+                        insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
+                    end
+                end
+                
+                pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+            end
+            
+            if maxlvl - minlvl < 2 then
+                local swaps = {}
+                local perm = permutations[random(1, 24)]
+                for i = 1, 4 do
+                    local vec = cardinals[perm[i]]
+                    pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+                    
+                    local neighNode = get(pos)
+                    local neighName = neighNode.name
+                    local neighDef = defs[neighName] or empty
+                    
+                    if neighName == myNode.name and myLevel - getLevel(pos) == 1 then
+                        local newNeighLvl = getLevel(pos)
+                        swap(pos, {name = myNode.name})
+                        setLevel(pos, myLevel)
+                        update(pos)
+                        
+                        pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+                        set(pos, neighNode)
+                        setLevel(pos, newNeighLvl)
+                        if newNeighLvl == 0 then
+                            set(pos, air)
+                        end
+                        update(pos)
+                        return
+                    end
+                    
+                    pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+                end
+                
+                return
+            end
             if sum == math.huge then
                 sum = #spreads * 7
             end
