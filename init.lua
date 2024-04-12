@@ -390,7 +390,6 @@ function waterminus.register_liquid(liquidDef)
             
             local start = {x = pos.x, y = pos.y, z = pos.z}
             local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
-            local requireFlooding = false
             
             local perm = permutations[random(1, 24)]
             for i = 1, 4 do
@@ -407,21 +406,15 @@ function waterminus.register_liquid(liquidDef)
                 local name = get(pos).name
                 local def = defs[name] or empty
                 
-                if not requireFlooding or belowDef.floodable then
-                    --[[if not requireFlooding and belowDef.floodable then
-                        minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
-                        requireFlooding = true
-                    end]]
-                    if name == flowing then
-                        local level = getLevel(pos)
-                        sum = sum + level
-                        maxlvl = max(maxlvl, level)
-                        minlvl = min(minlvl, level)
-                        insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
-                    elseif def.floodable then
-                        minlvl = 0
-                        insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
-                    end
+                if name == flowing then
+                    local level = getLevel(pos)
+                    sum = sum + level
+                    maxlvl = max(maxlvl, level)
+                    minlvl = min(minlvl, level)
+                    insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
+                elseif def.floodable then
+                    minlvl = 0
+                    insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
                 end
                 
                 pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
