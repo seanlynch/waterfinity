@@ -11,7 +11,8 @@ Finite liquids or modern Minetest.
 
 ## Mod support
 
-Custom buckets are supported with basic liquid pickup/place physics. Perfect liquid pointing will have to wait for 5.9.0 `pointabilities`.
+* `default`: Finite water and lava replace the 'regular' variants in generation.
+* `buckets`: Custom buckets are supported with basic liquid pickup/place physics. Perfect liquid pointing will have to wait for 5.9.0 `pointabilities`.
 
 ## Usage
 
@@ -33,7 +34,7 @@ waterminus.register_liquid {
 }
 ```
 
-* **source:** The 'spring' liquid. Infinite, always tries to produce more liquid, absorbs liquid from above. Optional.
-* **flowing:** The main finite liquid.
-* **bucket:** Optional. The prefix for bucket items to be registered for the liquid. E.G. "waterminus:bucket_water_1"
-* **bucket_images:** A list of bucket item textures.
+* `source`: The 'spring' liquid. Infinite, always tries to produce more liquid, absorbs liquid from above. Optional.
+* `flowing`: The main finite liquid.
+* `bucket`: Optional. The prefix for bucket items to be registered for the liquid. E.G. "waterminus:bucket_water_1"
+* `bucket_images`: A list of bucket item textures.

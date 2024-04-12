@@ -1,3 +1,6 @@
-# Makes oceans use an infinite water 'spring'.
-# May be less demanding with ocean holes.
+# Replaces regular water and lava sources with finite variants in mapgen.
+waterminus_replace_mapgen (Replace regular water and lava in mapgen) bool true
+
+# Generates oceans with an infinite 'spring' block.
+# May be less demanding.
 waterminus_ocean_springs (Infinite oceans) bool true

@@ -1,10 +1,7 @@
---[[
-Multi-level finite water test
-]]
-
 waterminus = {}
 
 local S = minetest.get_translator("waterminus")
+local settings = minetest.settings
 
 local set, get, swap, group = minetest.set_node, minetest.get_node, minetest.swap_node, minetest.get_item_group
 local getLevel, setLevel, getTimer = minetest.get_node_level, minetest.set_node_level, minetest.get_node_timer
@@ -58,7 +55,7 @@ local nop = function () end
 
 local function searchSpread(pos, depth, ctx)
     ctx = ctx or {sum = 0, max = 0, min = 8, spreads = {}, [pString(pos)] = true}
-    depth = depth or 2
+    depth = depth or 4
     
     local node = get(pos)
     local name = node.name
@@ -161,7 +158,7 @@ local function update(pos, depth)
     local def = defs[node.name] or empty
     local timeout = timer:get_timeout()
     
-    local updateInterval = 0.3
+    local updateInterval = 0.4
     if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= updateInterval - 0.01 then
         timer:start(updateInterval)
     end
@@ -388,7 +385,7 @@ function waterminus.register_liquid(liquidDef)
         else
             pos.y = pos.y + 1
             
-            local start = {x = pos.x, y = pos.y, z = pos.z}
+            --[=[local start = {x = pos.x, y = pos.y, z = pos.z}
             local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
             
             local perm = permutations[random(1, 24)]
@@ -418,9 +415,12 @@ function waterminus.register_liquid(liquidDef)
                 end
                 
                 pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-            end
+            end]=]
             
-            if maxlvl - minlvl < 2 then
+            local ctx = searchSpread(pos)
+            local sum, spreads, diff = ctx.sum, ctx.spreads, ctx.max - ctx.min
+            
+            if diff < 2 then -- maxlvl - minlvl < 2 then
                 local swaps = {}
                 local perm = permutations[random(1, 24)]
                 for i = 1, 4 do
@@ -760,53 +760,63 @@ if default then
         }
     }
 
-    local getBiomeName, id = minetest.get_biome_name, minetest.get_content_id
-    local waterFlowingID, waterID, springID, airID = id("default:water_flowing"), id("waterminus:water"), id("waterminus:spring"), id("air")
-    local lavaFlowingID, lavaID = id("default:lava_flowing"), id("waterminus:lava")
-    local equivalents = {[id("mapgen_water_source")] = minetest.settings:get_bool("waterminus_ocean_springs") ~= false and springID or waterID, [id("default:lava_source")] = lavaID}
-    
-    minetest.register_on_generated(function (minp, maxp, seed)
-        local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
-        local biomeMap = minetest.get_mapgen_object("biomemap")
-        local emin2d = {x = emin.x, y = emin.z, z = 0}
+    if settings:get_bool("waterminus_replace_mapgen") ~= false then
+        local getBiomeName, id = minetest.get_biome_name, minetest.get_content_id
+        local waterFlowingID, waterID, springID, airID = id("default:water_flowing"), id("waterminus:water"), id("waterminus:spring"), id("air")
+        local lavaFlowingID, lavaID = id("default:lava_flowing"), id("waterminus:lava")
         
-        local esize = vector.add(vector.subtract(emax, emin), 1)
-        local esize2d = {x = esize.x, y = esize.z}
+        local equivalents = {[id("default:water_source")] = waterID, [id("default:lava_source")] = lavaID}
+        local encase = {[waterID] = true, [lavaID] = true, [springID] = true}
         
-        local area = VoxelArea:new {MinEdge = emin, MaxEdge = emax}
-        local data = vm:get_data()
-        local paramData = vm:get_param2_data()
+        minetest.register_alias_force("mapgen_water_source", settings:get_bool("waterminus_ocean_springs") ~= false and "waterminus:spring" or "waterminus:water")
+        minetest.register_alias_force("mapgen_lava_source", lavaID)
         
-        for x = minp.x, maxp.x do
-            for z = minp.z, maxp.z do
-                for y = minp.y, maxp.y do
-                    local index = area:index(x, y, z)
-                    local block = data[index]
-                    if equivalents[block] then
-                        data[index] = equivalents[block]
-                        paramData[index] = 7
-                        for _, vec in ipairs(naturalFlows) do
-                            local nx, ny, nz = x + vec.x, y + vec.y, z + vec.z
-                            local nIndex = area:index(nx, ny, nz)
-                            
-                            local def = defs[minetest.get_name_from_content_id(data[nIndex])] or empty
-                            if data[nIndex] == airID or def.liquidtype == "flowing" then
-                                local biome = biomeMap and biomeMap[nIndex]
-                                local biomeDef = biome and minetest.registered_biomes[getBiomeName(biome)] or empty
-                                data[nIndex] = id(biomeDef.node_stone or "mapgen_stone")
+        minetest.register_on_generated(function (minp, maxp, seed)
+            local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
+            local biomeMap = minetest.get_mapgen_object("biomemap")
+            local emin2d = {x = emin.x, y = emin.z, z = 0}
+            
+            local esize = vector.add(vector.subtract(emax, emin), 1)
+            local esize2d = {x = esize.x, y = esize.z}
+            
+            local area = VoxelArea:new {MinEdge = emin, MaxEdge = emax}
+            local data = vm:get_data()
+            local paramData = vm:get_param2_data()
+            
+            for x = emin.x, emax.x do
+                for z = emin.z, emax.z do
+                    for y = emin.y, emax.y do
+                        local index = area:index(x, y, z)
+                        local block = data[index]
+                        
+                        if equivalents[block] then
+                            data[index] = equivalents[block]
+                            paramData[index] = 7
+                        end
+                        if encase[data[index]] and x >= minp.x and x <= maxp.x and y >= minp.y and y <= maxp.y and z >= minp.z and z <= maxp.z then
+                            for _, vec in ipairs(naturalFlows) do
+                                local nx, ny, nz = x + vec.x, y + vec.y, z + vec.z
+                                local nIndex = area:index(nx, ny, nz)
+                                
+                                local def = defs[minetest.get_name_from_content_id(data[nIndex])] or empty
+                                if data[nIndex] == airID or def.liquidtype == "flowing" then
+                                    local biome = biomeMap and biomeMap[nIndex]
+                                    local biomeDef = biome and minetest.registered_biomes[getBiomeName(biome)] or empty
+                                    data[nIndex] = id(biomeDef.node_stone or "mapgen_stone")
+                                end
                             end
                         end
                     end
                 end
             end
-        end
-        
-        vm:set_data(data)
-        vm:set_param2_data(paramData)
-        vm:calc_lighting()
-        vm:write_to_map()
-        vm:update_liquids()
-    end)
+            
+            vm:set_data(data)
+            vm:set_param2_data(paramData)
+            vm:calc_lighting()
+            vm:write_to_map()
+            vm:update_liquids()
+        end)
+    end
     
     function waterminus.cool_lava(pos, node)
         if getLevel(pos) == 7 then
