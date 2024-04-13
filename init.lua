@@ -879,8 +879,7 @@ if default then
     end
 end
 
--- Unfinished mesecon piston support
---[=[ if mesecon then
+if mesecon then
     local function on_mvps_move(moved_nodes)
         for _, callback in ipairs(mesecon.on_mvps_move) do
             callback(moved_nodes)
@@ -1115,4 +1114,4 @@ end
 
         return true, nodes, oldstack
     end
-end ]=]
+end
