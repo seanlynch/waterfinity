@@ -32,7 +32,8 @@ local adjacent = {
     {x = 0, y = 0, z = 1},
     {x = 0, y = 1, z = 0},
 }
-local updateAdj = {
+local updateMask = {
+    {x = 0, y = 0, z = 0},
     {x = -1, y = 0, z = 0},
     {x = 0, y = 0, z = -1},
     {x = 1, y = 0, z = 0},
@@ -53,7 +54,7 @@ local drain = {}
 local empty, air = {}, {name = "air"}
 local nop = function () end
 
-local function searchSpread(pos, depth, ctx)
+--[=[local function searchSpread(pos, depth, ctx)
     ctx = ctx or {sum = 0, max = 0, min = 8, spreads = {}, [pString(pos)] = true}
     depth = depth or 4
     
@@ -109,13 +110,14 @@ local function searchSpread(pos, depth, ctx)
     end
     
     return ctx
-end
+end]=]
 local function searchDrain(pos)
     local found = {[pString(pos)] = true}
     local queue = {x = pos.x, y = pos.y, z = pos.z, depth = 0}
     local last = queue
     
     local node = get(pos)
+    local level = getLevel(pos)
     local name = node.name
     local def = defs[name]
     
@@ -123,8 +125,11 @@ local function searchDrain(pos)
         local first = queue
         
         local fNode = get(first)
+        local fLevel = getLevel(first)
         local fName = fNode.name
         local fDef = defs[fName] or empty
+        
+        local source, flowing = def._waterminus_source, def._waterminus_flowing
         
         if first.depth == 0 or fDef.floodable then
             first.y = first.y - 1
@@ -134,9 +139,9 @@ local function searchDrain(pos)
             local bDef = defs[bName] or empty
             first.y = first.y + 1
             
-            if bDef.floodable or bName == def._waterminus_flowing and bLevel < 7 or bName == def._waterminus_source then
+            if bDef.floodable or bName == def._waterminus_flowing and bLevel < 7 or bName == source then
                 return first
-            elseif first.depth <= 2 then
+            elseif first.depth < def._waterminus_drain_range then
                 for _, vec in ipairs(cardinals) do
                     local new = {x = first.x + vec.x, y = first.y, z = first.z + vec.z, depth = first.depth + 1, dir = first.dir or vec}
                     
@@ -151,24 +156,17 @@ local function searchDrain(pos)
         queue = queue.next
     end
 end
-local function update(pos, depth)
-    if not depth then depth = 1 end
-    
-    local node, timer = get(pos), getTimer(pos)
-    local def = defs[node.name] or empty
-    local timeout = timer:get_timeout()
-    
-    local updateInterval = 0.4
-    if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= updateInterval - 0.01 then
-        timer:start(updateInterval)
-    end
-    
-    if depth <= 0 then return end
-    
-    for _, vec in ipairs(updateAdj) do
+local function update(pos)
+    for _, vec in ipairs(updateMask) do
         pos.x, pos.y, pos.z = pos.x + vec.x, pos.y + vec.y, pos.z + vec.z
         
-        update(pos, depth - 1)
+        local node, timer = get(pos), getTimer(pos)
+        local def = defs[node.name] or empty
+        local timeout = timer:get_timeout()
+        
+        if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= 0.39 then
+            timer:start(0.4)
+        end
         
         pos.x, pos.y, pos.z = pos.x - vec.x, pos.y - vec.y, pos.z - vec.z
     end
@@ -258,6 +256,8 @@ function waterminus.register_liquid(liquidDef)
         extra._waterminus_type = "source"
         extra._waterminus_source = source
         extra._waterminus_flowing = flowing
+        extra._waterminus_drain_range = liquidDef.drain_range or 3
+        extra._waterminus_jitter = liquidDef.jitter ~= false
         
         local construct = def.on_construct or nop
         extra.on_construct = function (pos, ...)
@@ -303,6 +303,8 @@ function waterminus.register_liquid(liquidDef)
     extra._waterminus_type = "flowing"
     extra._waterminus_source = source
     extra._waterminus_flowing = flowing
+    extra._waterminus_drain_range = liquidDef.drain_range or 3
+    extra._waterminus_jitter = liquidDef.jitter ~= false
     
     local construct = def.on_construct or nop
     extra.on_construct = function (pos, ...)
@@ -321,6 +323,7 @@ function waterminus.register_liquid(liquidDef)
     extra.on_timer = function (pos)
         local myNode = get(pos)
         local myLevel = getLevel(pos)
+        local myTimer = getTimer(pos)
         
         local myDef = defs[myNode.name]
         local flowing, source = myDef._waterminus_flowing, myDef._waterminus_source
@@ -331,25 +334,33 @@ function waterminus.register_liquid(liquidDef)
         local belowName = belowNode.name
         local belowDef = defs[belowName] or empty
         
-        if belowName == source or belowName ~= flowing and not belowDef.floodable then
-            pos.y = pos.y + 1
-            local sources = 0
-            for _, vec in ipairs(cardinals) do
-                pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
-                
-                if get(pos).name == source then
-                    sources = sources + 1
-                    if sources >= 2 then
-                        pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-                        set(pos, {name = source})
-                        return
-                    end
-                end
-                
-                pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-            end
-            pos.y = pos.y - 1
+        if belowName == "ignore" then
+            myTimer:start(5)
+            return
         end
+        
+        local renewable = belowName == source or belowName ~= flowing and not belowDef.floodable
+        pos.y = pos.y + 1
+        local sources = 0
+        for _, vec in ipairs(cardinals) do
+            pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+            
+            local name = get(pos).name
+            if renewable and name == source then
+                sources = sources + 1
+                if sources >= 2 then
+                    pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+                    set(pos, {name = source})
+                    return
+                end
+            elseif name == "ignore" then
+                myTimer:start(5)
+                return
+            end
+            
+            pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+        end
+        pos.y = pos.y - 1
         
         if belowDef.floodable or belowName == flowing and getLevel(pos) < 7 or belowName == source then
             local belowLvl = (belowDef.floodable or belowName == source) and 0 or getLevel(pos)
@@ -368,9 +379,16 @@ function waterminus.register_liquid(liquidDef)
                 set(pos, air)
             end
             update(pos)
-        elseif myLevel == 1 then
-            pos.y = pos.y + 1
             
+            myLevel = myLevel - levelGiven
+            
+            if level < 7 then
+                return
+            end
+        else
+            pos.y = pos.y + 1
+        end
+        if myLevel == 1 then
             local dir = (searchDrain(pos) or empty).dir
             if dir then
                 update(pos)
@@ -383,9 +401,7 @@ function waterminus.register_liquid(liquidDef)
                 return
             end
         else
-            pos.y = pos.y + 1
-            
-            --[=[local start = {x = pos.x, y = pos.y, z = pos.z}
+            local start = {x = pos.x, y = pos.y, z = pos.z}
             local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
             
             local perm = permutations[random(1, 24)]
@@ -393,14 +409,8 @@ function waterminus.register_liquid(liquidDef)
                 local vec = cardinals[perm[i]]
                 pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
                 
-                pos.y = pos.y - 1
-                local belowNode = get(pos)
-                local belowLevel = getLevel(pos)
-                local belowName = belowNode.name
-                local belowDef = defs[belowName] or empty
-                pos.y = pos.y + 1
-                
                 local name = get(pos).name
+                local level = getLevel(pos)
                 local def = defs[name] or empty
                 
                 if name == flowing then
@@ -409,18 +419,25 @@ function waterminus.register_liquid(liquidDef)
                     maxlvl = max(maxlvl, level)
                     minlvl = min(minlvl, level)
                     insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
+                elseif name == source then
+                    sum = sum + 7
+                    maxlvl = 7
                 elseif def.floodable then
                     minlvl = 0
                     insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
                 end
                 
                 pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-            end]=]
+            end
             
-            local ctx = searchSpread(pos)
+            --[[local ctx = searchSpread(pos)
             local sum, spreads, diff = ctx.sum, ctx.spreads, ctx.max - ctx.min
             
-            if diff < 2 then -- maxlvl - minlvl < 2 then
+            if diff < 2 then]]
+            
+            if maxlvl - minlvl < 2 then
+                if not def._waterminus_jitter then return end
+                
                 local swaps = {}
                 local perm = permutations[random(1, 24)]
                 for i = 1, 4 do
@@ -452,7 +469,7 @@ function waterminus.register_liquid(liquidDef)
                 
                 return
             end
-            if sum == math.huge then
+            if sum > #spreads * 7 then
                 sum = #spreads * 7
             end
             
@@ -466,8 +483,8 @@ function waterminus.register_liquid(liquidDef)
                 elseif get(spreadPos).name == flowing then
                     set(spreadPos, air)
                 end
-                update(spreadPos)
             end
+            update(pos)
         end
     end
     
@@ -598,6 +615,12 @@ minetest.register_on_mapblocks_changed(function (modified_blocks, modified_block
         update(getHashPos(hash))
     end
 end)
+
+local checkFalling = minetest.check_for_falling
+minetest.check_for_falling = function (pos, ...)
+    update(pos)
+    return checkFalling(pos, ...)
+end
 
 if default then
     minetest.register_node("waterminus:water", {
@@ -747,6 +770,9 @@ if default then
     waterminus.register_liquid {
         flowing = "waterminus:lava",
         
+        drain_range = 0,
+        jitter = false,
+        
         bucket = "waterminus:bucket_lava",
         bucket_desc = S("Finite Lava Bucket"),
         bucket_images = {
@@ -759,11 +785,25 @@ if default then
             "bucket_lava.png^waterminus_bucket_bar_7.png",
         }
     }
+    
+    if bucket then
+        for i = 1, 7 do
+            minetest.register_craft {
+                type = "fuel",
+                recipe = "waterminus:bucket_lava_" .. i,
+                burntime = 9,
+                replacements = {{"waterminus:bucket_lava_" .. i, i == 1 and "bucket:bucket_empty" or "waterminus:bucket_lava_" .. i - 1}},
+            }
+        end
+    end
 
     if settings:get_bool("waterminus_replace_mapgen") ~= false then
         local getBiomeName, id = minetest.get_biome_name, minetest.get_content_id
+        local getName = minetest.get_name_from_content_id
+        
         local waterFlowingID, waterID, springID, airID = id("default:water_flowing"), id("waterminus:water"), id("waterminus:spring"), id("air")
         local lavaFlowingID, lavaID = id("default:lava_flowing"), id("waterminus:lava")
+        local riverWaterSrcID = id("default:river_water_source")
         
         local equivalents = {[id("default:water_source")] = waterID, [id("default:lava_source")] = lavaID}
         local encase = {[waterID] = true, [lavaID] = true, [springID] = true}
@@ -795,10 +835,9 @@ if default then
                         end
                         if encase[data[index]] and x >= minp.x and x <= maxp.x and y >= minp.y and y <= maxp.y and z >= minp.z and z <= maxp.z then
                             for _, vec in ipairs(naturalFlows) do
-                                local nx, ny, nz = x + vec.x, y + vec.y, z + vec.z
-                                local nIndex = area:index(nx, ny, nz)
+                                local nIndex = area:index(x + vec.x, y + vec.y, z + vec.z)
                                 
-                                local def = defs[minetest.get_name_from_content_id(data[nIndex])] or empty
+                                local def = defs[getName(data[nIndex])] or empty
                                 if data[nIndex] == airID or def.liquidtype == "flowing" then
                                     local biome = biomeMap and biomeMap[nIndex]
                                     local biomeDef = biome and minetest.registered_biomes[getBiomeName(biome)] or empty
@@ -839,3 +878,241 @@ if default then
         }
     end
 end
+
+-- Unfinished mesecon piston support
+--[=[ if mesecon then
+    local function on_mvps_move(moved_nodes)
+        for _, callback in ipairs(mesecon.on_mvps_move) do
+            callback(moved_nodes)
+        end
+    end
+    local function are_protected(positions, player_name)
+        local mode = mesecon.setting("mvps_protection_mode", "compat")
+        if mode == "ignore" then
+            return false
+        end
+        local name = player_name
+        if player_name == "" or not player_name then -- legacy MVPS
+            if mode == "normal" then
+                name = "$unknown" -- sentinel, for checking for *any* protection
+            elseif mode == "compat" then
+                return false
+            elseif mode == "restrict" then
+                return true
+            else
+                error("Invalid protection mode")
+            end
+        end
+        local is_protected = minetest.is_protected
+        for _, pos in pairs(positions) do
+            if is_protected(pos, name) then
+                return true
+            end
+        end
+        return false
+    end
+    local function add_pos(positions, pos)
+        local hash = minetest.hash_node_position(pos)
+        positions[hash] = pos
+    end
+    
+    -- tests if the node can be pushed into, e.g. air, water, grass
+    local function node_replaceable(name)
+        local nodedef = minetest.registered_nodes[name]
+        
+        if group(name, "waterminus") > 0 then
+            return false
+        end
+
+        -- everything that can be an mvps stopper (unknown nodes and nodes in the
+        -- mvps_stoppers table) must not be replacable
+        -- Note: ignore (a stopper) is buildable_to, but we do not want to push into it
+        if not nodedef or mesecon.mvps_stoppers[name] then
+            return false
+        end
+
+        return nodedef.buildable_to or false
+    end
+    
+    function mesecon.mvps_get_stack(pos, dir, maximum, all_pull_sticky)
+        -- determine the number of nodes to be pushed
+        local nodes = {}
+        local pos_set = {}
+        local frontiers = mesecon.fifo_queue.new()
+        frontiers:add(vector.new(pos))
+
+        local prevLiquid
+        
+        for np in frontiers:iter() do
+            local np_hash = minetest.hash_node_position(np)
+            local nn = not pos_set[np_hash] and minetest.get_node(np)
+            
+            if nn and not node_replaceable(nn.name) then
+                local compress = false
+                if defs[nn.name]._waterminus_flowing == nn.name then
+                    if prevLiquid and prevLiquid.name == nn.name then
+                        if prevLiquid.param2 % 8 + nn.param2 % 8 <= 7 then
+                            compress = true
+                        end
+                    end
+                    prevLiquid = nn
+                else
+                    prevLiquid = nil
+                end
+                
+                pos_set[np_hash] = true
+                table.insert(nodes, {node = nn, pos = np})
+                if #nodes > maximum then return nil end
+
+                if not compress then
+                    -- add connected nodes to frontiers
+                    local nndef = minetest.registered_nodes[nn.name]
+                    if nndef and nndef.mvps_sticky then
+                        local connected = nndef.mvps_sticky(np, nn)
+                        for _, cp in ipairs(connected) do
+                            frontiers:add(cp)
+                        end
+                    end
+
+                    frontiers:add(vector.add(np, dir))
+
+                    -- If adjacent node is sticky block and connects add that
+                    -- position
+                    for _, r in ipairs(mesecon.rules.alldirs) do
+                        local adjpos = vector.add(np, r)
+                        local adjnode = minetest.get_node(adjpos)
+                        local adjdef = minetest.registered_nodes[adjnode.name]
+                        if adjdef and adjdef.mvps_sticky then
+                            local sticksto = adjdef.mvps_sticky(adjpos, adjnode)
+
+                            -- connects to this position?
+                            for _, link in ipairs(sticksto) do
+                                if vector.equals(link, np) then
+                                    frontiers:add(adjpos)
+                                end
+                            end
+                        end
+                    end
+
+                    if all_pull_sticky then
+                        frontiers:add(vector.subtract(np, dir))
+                    end
+                end
+            end
+        end
+
+        return nodes
+    end
+    
+    -- pos: pos of mvps
+    -- stackdir: direction of building the stack
+    -- movedir: direction of actual movement
+    -- maximum: maximum nodes to be pushed
+    -- all_pull_sticky: All nodes are sticky in the direction that they are pulled from
+    -- player_name: Player responsible for the action.
+    --  - empty string means legacy MVPS, actual check depends on configuration
+    --  - "$unknown" is a sentinel for forcing the check
+    function mesecon.mvps_push_or_pull(pos, stackdir, movedir, maximum, all_pull_sticky, player_name)
+        local nodes = mesecon.mvps_get_stack(pos, movedir, maximum, all_pull_sticky)
+
+        if not nodes then return end
+
+        local protection_check_set = {}
+        local pushing = vector.equals(stackdir, movedir)
+        if pushing then -- pushing
+            add_pos(protection_check_set, pos)
+        end
+        -- determine if one of the nodes blocks the push / pull
+        local pushLiquid = false
+        for id, n in ipairs(nodes) do
+            if mesecon.is_mvps_stopper(n.node, movedir, nodes, id) then
+                return
+            end
+            if defs[n.node.name]._waterminus_flowing == n.node.name then
+                -- Nasty hack
+                if pushLiquid then
+                    if n.node.name ~= pushLiquid then return end
+                    
+                    local prev = nodes[id - 1]
+                    local prevLevel = prev.node.param2 % 8
+                    
+                    local totalLevel = prevLevel + n.node.param2 % 8
+                    
+                    if totalLevel <= 7 then
+                        prev.node.param2 = totalLevel
+                        for i = id, #nodes do
+                            table.remove(nodes, id)
+                        end
+                        table.insert(nodes, "stop")
+                        break
+                    end
+                end
+                
+                pushLiquid = n.node.name
+            elseif pushLiquid then
+                return
+            end
+            
+            add_pos(protection_check_set, n.pos)
+            add_pos(protection_check_set, vector.add(n.pos, movedir))
+        end
+        if are_protected(protection_check_set, player_name) then
+            return false, "protected"
+        end
+
+        -- remove all nodes
+        for _, n in ipairs(nodes) do
+            if n == "stop" then break end
+            
+            n.meta = minetest.get_meta(n.pos):to_table()
+            local node_timer = minetest.get_node_timer(n.pos)
+            if node_timer:is_started() then
+                n.node_timer = {node_timer:get_timeout(), node_timer:get_elapsed()}
+            end
+            minetest.remove_node(n.pos)
+        end
+
+        local oldstack = mesecon.tablecopy(nodes)
+
+        -- update mesecons for removed nodes ( has to be done after all nodes have been removed )
+        for _, n in ipairs(nodes) do
+            if n == "stop" then break end
+            mesecon.on_dignode(n.pos, n.node)
+        end
+
+        -- add nodes
+        for _, n in ipairs(nodes) do
+            if n == "stop" then break end
+            local np = vector.add(n.pos, movedir)
+
+            -- Turn off conductors in transit
+            local conductor = mesecon.get_conductor(n.node.name)
+            if conductor and conductor.state ~= mesecon.state.off then
+                n.node.name = conductor.offstate or conductor.states[1]
+            end
+
+            minetest.set_node(np, n.node)
+            minetest.get_meta(np):from_table(n.meta)
+            if n.node_timer then
+                minetest.get_node_timer(np):set(unpack(n.node_timer))
+            end
+        end
+
+        local moved_nodes = {}
+        for i in ipairs(nodes) do
+            if nodes[i] == "stop" then break end
+            
+            moved_nodes[i] = {}
+            moved_nodes[i].oldpos = nodes[i].pos
+            nodes[i].pos = vector.add(nodes[i].pos, movedir)
+            moved_nodes[i].pos = nodes[i].pos
+            moved_nodes[i].node = nodes[i].node
+            moved_nodes[i].meta = nodes[i].meta
+            moved_nodes[i].node_timer = nodes[i].node_timer
+        end
+
+        on_mvps_move(moved_nodes)
+
+        return true, nodes, oldstack
+    end
+end ]=]
