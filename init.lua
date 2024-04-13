@@ -40,6 +40,7 @@ local updateMask = {
     {x = 0, y = 0, z = 1},
     {x = 0, y = 1, z = 0},
 }
+local zero = updateMask[1]
 local cardinals = {
     {x = 1, z = 0},
     {x = 0, z = 1},
@@ -164,8 +165,8 @@ local function update(pos)
         local def = defs[node.name] or empty
         local timeout = timer:get_timeout()
         
-        if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= 0.39 then
-            timer:start(0.4)
+        if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= 0.49 then
+            timer:start(0.5)
         end
         
         pos.x, pos.y, pos.z = pos.x - vec.x, pos.y - vec.y, pos.z - vec.z
@@ -340,27 +341,26 @@ function waterminus.register_liquid(liquidDef)
         end
         
         local renewable = belowName == source or belowName ~= flowing and not belowDef.floodable
-        pos.y = pos.y + 1
-        local sources = 0
-        for _, vec in ipairs(cardinals) do
-            pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
-            
-            local name = get(pos).name
-            if renewable and name == source then
-                sources = sources + 1
-                if sources >= 2 then
-                    pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-                    set(pos, {name = source})
-                    return
+        if renewable then
+            pos.y = pos.y + 1
+            local sources = 0
+            for _, vec in ipairs(cardinals) do
+                pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+                
+                local name = get(pos).name
+                if name == source then
+                    sources = sources + 1
+                    if sources >= 2 then
+                        pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+                        set(pos, {name = source})
+                        return
+                    end
                 end
-            elseif name == "ignore" then
-                myTimer:start(5)
-                return
+                
+                pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
             end
-            
-            pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+            pos.y = pos.y - 1
         end
-        pos.y = pos.y - 1
         
         if belowDef.floodable or belowName == flowing and getLevel(pos) < 7 or belowName == source then
             local belowLvl = (belowDef.floodable or belowName == source) and 0 or getLevel(pos)
@@ -370,121 +370,113 @@ function waterminus.register_liquid(liquidDef)
             if belowName ~= source then
                 set(pos, {name = flowing})
                 setLevel(pos, level)
-                update(pos)
             end
             
             pos.y = pos.y + 1
+            
             setLevel(pos, myLevel - levelGiven)
             if myLevel - levelGiven <= 0 then
                 set(pos, air)
+                update(pos)
             end
-            update(pos)
             
-            myLevel = myLevel - levelGiven
-            
-            if level < 7 then
-                return
-            end
-        else
-            pos.y = pos.y + 1
+            return
         end
+        
+        pos.y = pos.y + 1
         if myLevel == 1 then
             local dir = (searchDrain(pos) or empty).dir
             if dir then
-                update(pos)
                 set(pos, air)
+                update(pos)
+                
                 pos.x, pos.z = pos.x + dir.x, pos.z + dir.z
                 set(pos, {name = flowing})
                 setLevel(pos, myLevel)
-                update(pos)
-                
-                return
             end
-        else
-            local start = {x = pos.x, y = pos.y, z = pos.z}
-            local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {start}
             
+            return
+        end
+        
+        local start = {x = pos.x, y = pos.y, z = pos.z}
+        local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {zero}
+        
+        local perm = permutations[random(1, 24)]
+        for i = 1, 4 do
+            local vec = cardinals[perm[i]]
+            pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+            
+            local name = get(pos).name
+            local level = getLevel(pos)
+            local def = defs[name] or empty
+            
+            if name == flowing then
+                local level = getLevel(pos)
+                sum = sum + level
+                maxlvl = max(maxlvl, level)
+                minlvl = min(minlvl, level)
+                insert(spreads, vec)
+            elseif name == source then
+                sum = sum + 7
+                maxlvl = 7
+            elseif def.floodable then
+                minlvl = 0
+                insert(spreads, vec)
+            end
+            
+            pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+        end
+        
+        if maxlvl - minlvl < 2 then
+            if not def._waterminus_jitter then return end
+            
+            local swaps = {}
             local perm = permutations[random(1, 24)]
             for i = 1, 4 do
                 local vec = cardinals[perm[i]]
                 pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
                 
-                local name = get(pos).name
-                local level = getLevel(pos)
-                local def = defs[name] or empty
+                local neighNode = get(pos)
+                local neighName = neighNode.name
+                local neighDef = defs[neighName] or empty
                 
-                if name == flowing then
-                    local level = getLevel(pos)
-                    sum = sum + level
-                    maxlvl = max(maxlvl, level)
-                    minlvl = min(minlvl, level)
-                    insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
-                elseif name == source then
-                    sum = sum + 7
-                    maxlvl = 7
-                elseif def.floodable then
-                    minlvl = 0
-                    insert(spreads, {x = pos.x, y = pos.y, z = pos.z})
+                if neighName == myNode.name and myLevel - getLevel(pos) == 1 then
+                    local newNeighLvl = getLevel(pos)
+                    set(pos, {name = myNode.name})
+                    setLevel(pos, myLevel)
+                    
+                    pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+                    set(pos, neighNode)
+                    setLevel(pos, newNeighLvl)
+                    if newNeighLvl == 0 then
+                        set(pos, air)
+                    end
+                    return
                 end
                 
                 pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
             end
             
-            --[[local ctx = searchSpread(pos)
-            local sum, spreads, diff = ctx.sum, ctx.spreads, ctx.max - ctx.min
+            return
+        end
+        if sum > #spreads * 7 then
+            sum = #spreads * 7
+        end
+        
+        local average, leftover = floor(sum / #spreads), sum % #spreads
+        
+        for i, vec in ipairs(spreads) do
+            pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+            local level = average + (i <= leftover and 1 or 0)
             
-            if diff < 2 then]]
-            
-            if maxlvl - minlvl < 2 then
-                if not def._waterminus_jitter then return end
-                
-                local swaps = {}
-                local perm = permutations[random(1, 24)]
-                for i = 1, 4 do
-                    local vec = cardinals[perm[i]]
-                    pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
-                    
-                    local neighNode = get(pos)
-                    local neighName = neighNode.name
-                    local neighDef = defs[neighName] or empty
-                    
-                    if neighName == myNode.name and myLevel - getLevel(pos) == 1 then
-                        local newNeighLvl = getLevel(pos)
-                        swap(pos, {name = myNode.name})
-                        setLevel(pos, myLevel)
-                        update(pos)
-                        
-                        pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-                        set(pos, neighNode)
-                        setLevel(pos, newNeighLvl)
-                        if newNeighLvl == 0 then
-                            set(pos, air)
-                        end
-                        update(pos)
-                        return
-                    end
-                    
-                    pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-                end
-                
-                return
-            end
-            if sum > #spreads * 7 then
-                sum = #spreads * 7
+            if level > 0 then
+                set(pos, {name = flowing})
+                setLevel(pos, level)
+            elseif get(pos).name == flowing then
+                set(pos, air)
             end
             
-            local average, leftover = floor(sum / #spreads), sum % #spreads
-            
-            for i, spreadPos in ipairs(spreads) do
-                local level = average + (i <= leftover and 1 or 0)
-                if level > 0 then
-                    set(spreadPos, {name = flowing})
-                    setLevel(spreadPos, level)
-                elseif get(spreadPos).name == flowing then
-                    set(spreadPos, air)
-                end
-            end
-            update(pos)
+            pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
         end
     end
     
@@ -665,6 +657,8 @@ if default then
         liquid_alternative_flowing = "waterminus:water",
         
         post_effect_color = {r = 30, g = 70, b = 90, a = 103},
+        
+        leveled_max = 7,
         
         on_blast = function (pos, intensity) end,
         sounds = default.node_sound_water_defaults()

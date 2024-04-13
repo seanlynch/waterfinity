@@ -1,6 +1,6 @@
 # Waterminus
 
-Finite liquids or modern Minetest.
+Finite liquid physics for modern Minetest.
 
 ## Physics
 
@@ -12,10 +12,10 @@ Finite liquids or modern Minetest.
 ## Mod support
 
 * `default`: Finite water and lava replace the 'regular' variants in generation.
-* `buckets`: Custom buckets are supported with basic liquid pickup/place physics. Perfect liquid pointing will have to wait for 5.9.0 `pointabilities`.
-* `mesecons`: Pistons can push into liquids and compress them against blocks. (Functionality is still WIP)
+* `buckets`: Custom buckets are supported with basic liquid pickup/place logic. Proper liquid pointing will be available with MT 5.9.0.
+* `mesecons`: Pistons can push into liquids and compress them against blocks. (WIP)
 
-## Usage
+## API
 
 ```
 waterminus.register_liquid {
