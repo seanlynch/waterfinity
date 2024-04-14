@@ -595,7 +595,7 @@ if default then
         tiles = {"waterminus_spring.png"},
         special_tiles = {
             {
-                name = "waterminus_water_animated.png",
+                name = "waterminus_spring_animated.png",
                 backface_culling = false,
                 animation = {
                     type = "vertical_frames",
@@ -611,7 +611,7 @@ if default then
                     type = "vertical_frames",
                     aspect_w = 16,
                     aspect_h = 16,
-                    length = 2,
+                    length = 0.5,
                 },
             },
         },
@@ -777,7 +777,7 @@ if default then
         local equivalents = {[id("default:water_source")] = waterID, [id("default:lava_source")] = lavaID}
         local encase = {[waterID] = true, [lavaID] = true, [springID] = true}
         
-        minetest.register_alias_force("mapgen_water_source", settings:get_bool("waterminus_ocean_springs") ~= false and "waterminus:spring" or "waterminus:water")
+        minetest.register_alias_force("mapgen_water_source", settings:get_bool("waterminus_ocean_springs") ~= false and "waterminus:spring" or "default:water_source")
         minetest.register_alias_force("mapgen_lava_source", lavaID)
         
         minetest.register_on_generated(function (minp, maxp, seed)
