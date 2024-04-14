@@ -312,16 +312,16 @@ function waterminus.register_liquid(liquidDef)
             local level = belowLvl + levelGiven
             
             if belowName ~= source then
-                set(pos, {name = flowing})
-                setLevel(pos, level)
+                set(pos, {name = flowing, param2 = level})
             end
             
             pos.y = pos.y + 1
             
-            setLevel(pos, myLevel - levelGiven)
             if myLevel - levelGiven <= 0 then
                 set(pos, air)
                 update(pos)
+            else
+                setLevel(pos, myLevel - levelGiven)
             end
             
             return
@@ -335,15 +335,13 @@ function waterminus.register_liquid(liquidDef)
                 update(pos)
                 
                 pos.x, pos.z = pos.x + dir.x, pos.z + dir.z
-                set(pos, {name = flowing})
-                setLevel(pos, myLevel)
+                set(pos, {name = flowing, param2 = myLevel})
             end
             
             return
         end
         
-        local start = {x = pos.x, y = pos.y, z = pos.z}
-        local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {zero}
+        local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {zero, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil}
         local test = {[hash(pos)] = true}
         
         local perm = permutations[random(1, 24)]
@@ -360,11 +358,10 @@ function waterminus.register_liquid(liquidDef)
                 local def = defs[name] or empty
                 
                 if name == flowing then
-                    local level = getLevel(pos)
                     sum = sum + level
-                    maxlvl = max(maxlvl, level)
-                    minlvl = min(minlvl, level)
-                    insert(spreads, vecA)
+                    maxlvl = maxlvl > level and maxlvl or level
+                    minlvl = minlvl < level and minlvl or level
+                    spreads[#spreads + 1] = vecA
                     
                     local perm = permutations[random(1, 24)]
                     for _, i in ipairs(perm) do
@@ -381,17 +378,16 @@ function waterminus.register_liquid(liquidDef)
                             local def = defs[name] or empty
                             
                             if name == flowing then
-                                local level = getLevel(pos)
                                 sum = sum + level
-                                maxlvl = max(maxlvl, level)
-                                minlvl = min(minlvl, level)
-                                insert(spreads, fullVec)
+                                maxlvl = maxlvl > level and maxlvl or level
+                                minlvl = minlvl < level and minlvl or level
+                                spreads[#spreads + 1] = fullVec
                             elseif name == source then
                                 sum = sum + 7
                                 maxlvl = 7
                             elseif def.floodable then
                                 minlvl = 0
-                                insert(spreads, fullVec)
+                                spreads[#spreads + 1] = fullVec
                             end
                             
                         end
@@ -402,7 +398,7 @@ function waterminus.register_liquid(liquidDef)
                     maxlvl = 7
                 elseif def.floodable then
                     minlvl = 0
-                    insert(spreads, vecA)
+                    spreads[#spreads + 1] = vecA
                 end
             end
             
@@ -421,16 +417,14 @@ function waterminus.register_liquid(liquidDef)
                 local neighNode = get(pos)
                 local neighName = neighNode.name
                 local neighDef = defs[neighName] or empty
+                local neighLvl = getLevel(pos)
                 
-                if neighName == myNode.name and myLevel - getLevel(pos) == 1 then
-                    local newNeighLvl = getLevel(pos)
-                    set(pos, {name = myNode.name})
-                    setLevel(pos, myLevel)
+                if neighName == myNode.name and myLevel - neighLvl == 1 then
+                    set(pos, {name = myNode.name, param2 = myLevel})
                     
                     pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
                     set(pos, neighNode)
-                    setLevel(pos, newNeighLvl)
-                    if newNeighLvl == 0 then
+                    if neighLvl == 0 then
                         set(pos, air)
                     end
                     return
@@ -452,8 +446,7 @@ function waterminus.register_liquid(liquidDef)
             local level = average + (i <= leftover and 1 or 0)
             
             if level > 0 then
-                set(pos, {name = flowing})
-                setLevel(pos, level)
+                set(pos, {name = flowing, param2 = level})
             elseif get(pos).name == flowing then
                 set(pos, air)
             end
@@ -502,9 +495,10 @@ function waterminus.register_liquid(liquidDef)
                     end
                     
                     local levelTaken = min(level, 7 - i)
-                    setLevel(pos, level - levelTaken)
                     if levelTaken == level then
                         set(pos, air)
+                    else
+                        setLevel(pos, level - levelTaken)
                     end
                     update(pos)
                     
@@ -569,8 +563,7 @@ function waterminus.register_liquid(liquidDef)
                     local newLevel = node.name == liquidDef.flowing and level + levelGiven or levelGiven
                     local giveBack = i - levelGiven == 0 and "bucket:bucket_empty" or liquidDef.bucket .. "_" .. i - levelGiven
 
-                    set(lpos, {name = liquidDef.flowing})
-                    setLevel(lpos, newLevel)
+                    set(lpos, {name = liquidDef.flowing, param2 = newLevel})
                     update(lpos)
                     return ItemStack(giveBack)
                 end
