@@ -6,7 +6,7 @@ local settings = minetest.settings
 local set, get, swap, group = minetest.set_node, minetest.get_node, minetest.swap_node, minetest.get_item_group
 local getLevel, setLevel, getTimer = minetest.get_node_level, minetest.set_node_level, minetest.get_node_timer
 local defs, itemDefs = minetest.registered_nodes, minetest.registered_items
-local add, pString = vector.add, minetest.pos_to_string
+local add, hash = vector.add, minetest.hash_node_position
 local floor, random, min, max = math.floor, math.random, math.min, math.max
 local insert = table.insert
 
@@ -55,65 +55,8 @@ local drain = {}
 local empty, air = {}, {name = "air"}
 local nop = function () end
 
---[=[local function searchSpread(pos, depth, ctx)
-    ctx = ctx or {sum = 0, max = 0, min = 8, spreads = {}, [pString(pos)] = true}
-    depth = depth or 4
-    
-    local node = get(pos)
-    local name = node.name
-    local def = defs[name] or empty
-    
-    if not ctx.name then ctx.name = name end
-    
-    pos.y = pos.y - 1
-    local belowNode = get(pos)
-    local belowLevel = getLevel(pos)
-    local belowName = belowNode.name
-    local belowDef = defs[belowName] or empty
-    pos.y = pos.y + 1
-    
-    if name == ctx.name then
-        local level = getLevel(pos)
-        ctx.sum = ctx.sum + level
-        ctx.max = max(ctx.max, level)
-        ctx.min = min(ctx.min, level)
-    elseif name == def._waterminus_source then
-        ctx.sum = math.huge
-        return
-    elseif not def.floodable then
-        return ctx
-    else
-        ctx.min = 0
-    end
-    
-    insert(ctx.spreads, {x = pos.x, y = pos.y, z = pos.z})
-    if depth <= 0 then return ctx end
-    
-    if def.floodable and belowName ~= ctx.name then
-        return ctx
-    end
-    if belowDef.floodable or belowName == ctx.name and belowLevel < 7 then
-        return ctx
-    end
-    
-    local perm = permutations[random(1, 24)]
-    for i = 1, 4 do
-        local vec = cardinals[perm[i]]
-        pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
-        
-        local pstr = pString(pos)
-        if not ctx[pstr] then
-            ctx[pstr] = true
-            searchSpread(pos, depth - 1, ctx)
-        end
-        
-        pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-    end
-    
-    return ctx
-end]=]
 local function searchDrain(pos)
-    local found = {[pString(pos)] = true}
+    local found = {[hash(pos)] = true}
     local queue = {x = pos.x, y = pos.y, z = pos.z, depth = 0}
     local last = queue
     
@@ -146,7 +89,7 @@ local function searchDrain(pos)
                 for _, vec in ipairs(cardinals) do
                     local new = {x = first.x + vec.x, y = first.y, z = first.z + vec.z, depth = first.depth + 1, dir = first.dir or vec}
                     
-                    local pstr = pString(new)
+                    local pstr = hash(new)
                     if not found[pstr] then
                         found[pstr] = true
                         last.next, last = new, new
@@ -244,6 +187,7 @@ if bucket then
     })
 end
 
+local jitterEnabled = settings:get_bool("waterminus_jitter")
 function waterminus.register_liquid(liquidDef)
     local source, flowing = liquidDef.source, liquidDef.flowing
     
@@ -258,7 +202,7 @@ function waterminus.register_liquid(liquidDef)
         extra._waterminus_source = source
         extra._waterminus_flowing = flowing
         extra._waterminus_drain_range = liquidDef.drain_range or 3
-        extra._waterminus_jitter = liquidDef.jitter ~= false
+        extra._waterminus_jitter = liquidDef.jitter ~= false and jitterEnabled
         
         local construct = def.on_construct or nop
         extra.on_construct = function (pos, ...)
@@ -305,7 +249,7 @@ function waterminus.register_liquid(liquidDef)
     extra._waterminus_source = source
     extra._waterminus_flowing = flowing
     extra._waterminus_drain_range = liquidDef.drain_range or 3
-    extra._waterminus_jitter = liquidDef.jitter ~= false
+    extra._waterminus_jitter = liquidDef.jitter ~= false and jitterEnabled
     
     local construct = def.on_construct or nop
     extra.on_construct = function (pos, ...)
@@ -400,31 +344,69 @@ function waterminus.register_liquid(liquidDef)
         
         local start = {x = pos.x, y = pos.y, z = pos.z}
         local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {zero}
+        local test = {[hash(pos)] = true}
         
         local perm = permutations[random(1, 24)]
-        for i = 1, 4 do
-            local vec = cardinals[perm[i]]
-            pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+        for _, i in ipairs(perm) do
+            local vecA = cardinals[perm[i]]
+            pos.x, pos.z = pos.x + vecA.x, pos.z + vecA.z
             
-            local name = get(pos).name
-            local level = getLevel(pos)
-            local def = defs[name] or empty
-            
-            if name == flowing then
+            local pstr = hash(pos)
+            if not test[pstr] then
+                test[pstr] = true
+                
+                local name = get(pos).name
                 local level = getLevel(pos)
-                sum = sum + level
-                maxlvl = max(maxlvl, level)
-                minlvl = min(minlvl, level)
-                insert(spreads, vec)
-            elseif name == source then
-                sum = sum + 7
-                maxlvl = 7
-            elseif def.floodable then
-                minlvl = 0
-                insert(spreads, vec)
+                local def = defs[name] or empty
+                
+                if name == flowing then
+                    local level = getLevel(pos)
+                    sum = sum + level
+                    maxlvl = max(maxlvl, level)
+                    minlvl = min(minlvl, level)
+                    insert(spreads, vecA)
+                    
+                    local perm = permutations[random(1, 24)]
+                    for _, i in ipairs(perm) do
+                        local vecB = cardinals[perm[i]]
+                        local fullVec = {x = vecA.x + vecB.x, z = vecA.z + vecB.z}
+                        
+                        pos.x, pos.z = pos.x + vecB.x, pos.z + vecB.z
+                        local pstr = hash(pos)
+                        if not test[pstr] then
+                            test[pstr] = true
+                            
+                            local name = get(pos).name
+                            local level = getLevel(pos)
+                            local def = defs[name] or empty
+                            
+                            if name == flowing then
+                                local level = getLevel(pos)
+                                sum = sum + level
+                                maxlvl = max(maxlvl, level)
+                                minlvl = min(minlvl, level)
+                                insert(spreads, fullVec)
+                            elseif name == source then
+                                sum = sum + 7
+                                maxlvl = 7
+                            elseif def.floodable then
+                                minlvl = 0
+                                insert(spreads, fullVec)
+                            end
+                            
+                        end
+                        pos.x, pos.z = pos.x - vecB.x, pos.z - vecB.z
+                    end   
+                elseif name == source then
+                    sum = sum + 7
+                    maxlvl = 7
+                elseif def.floodable then
+                    minlvl = 0
+                    insert(spreads, vecA)
+                end
             end
             
-            pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+            pos.x, pos.z = pos.x - vecA.x, pos.z - vecA.z
         end
         
         if maxlvl - minlvl < 2 then

@@ -1,6 +1,10 @@
-# Replaces regular water and lava sources with finite variants in mapgen.
-waterminus_replace_mapgen (Replace regular water and lava in mapgen) bool true
+# Replace regular water and lava sources with finite variants in mapgen.
+waterminus_replace_mapgen (Replace mapgen water and lava) bool true
 
-# Generates oceans with an infinite 'spring' block.
-# May be less demanding.
+# Generate oceans with an infinite 'spring' block, requires replace_mapgen.
+# May reduce performance impact.
 waterminus_ocean_springs (Infinite oceans) bool true
+
+# Enable jittering for certain fluids.
+# Ensures lakes fully even out eventually, but has a high performance impact.
+waterminus_jitter (Jittering) bool false

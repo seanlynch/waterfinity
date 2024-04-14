@@ -7,7 +7,7 @@ Finite liquid physics for modern Minetest.
 * *Source* liquid always tries to produce more flowing liquid.
 * *Flowing* liquid evens out with its neighbours.
 * Thin liquid runs towards holes up to N blocks away.
-* Almost even liquid (1 layer difference) jitters randomly if it is not nearly empty, so all bodies even out "eventually".
+* If jittering is enabled, almost even liquid will jitter around randomly, so all bodies even out "eventually".
 
 ## Mod support
 
@@ -41,6 +41,6 @@ waterminus.register_liquid {
 * `source`: The node for the 'spring' liquid. Infinite, always tries to produce more liquid, absorbs liquid from above. Optional.
 * `flowing`: The node for the finite liquid.
 * `drain_range`: Optional, defaults to 3. How far thin liquid will run towards holes.
-* `jitter`: Defaults to true. Whether almost even liquid will jitter randomly.
+* `jitter`: Defaults to true. Whether almost even bodies will jitter when the `Jittering` setting is enabled.
 * `bucket`: Optional. The prefix for bucket items to be registered for the liquid. E.G. "waterminus:bucket_water_1"
 * `bucket_images`: A list of bucket item textures.
