@@ -86,7 +86,7 @@ local drain = {}
 local empty, air = {}, {name = "air"}
 local nop = function () end
 
-local updateInterval = settings:get_float("waterminus_update_interval") or 0.25
+local updateInterval = settings:get("waterminus_update_interval") or 0.25
 
 local function searchDrain(pos)
     local found = {[hash(pos)] = true}
