@@ -643,7 +643,71 @@ minetest.check_for_falling = function (pos, ...)
     return checkFalling(pos, ...)
 end
 
-if default then
+if settings:get_bool("waterminus_override_all") then
+    local liquids, flowingAlts = {}, {}
+    minetest.register_on_mods_loaded(function ()
+        for source, def in pairs(defs) do
+            if def.liquidtype == "source" then
+                local flowing = def.liquid_alternative_flowing
+                liquids[#liquids + 1] = source
+                flowingAlts[source] = flowing
+                
+                -- Hack: override_item does not correctly disable engine liquid physics
+                def.liquidtype = nil
+                def.liquid_move_physics = true
+                minetest.unregister_item(source)
+                minetest.register_node(":" .. source, def)
+                
+                local flowDef = defs[flowing]
+                flowDef.liquidtype = nil
+                flowDef.liquid_move_physics = true
+                minetest.unregister_item(flowing)
+                minetest.register_node(":" .. flowing, flowDef)
+                
+                local liquidDef = {
+                    source = source,
+                    flowing = flowing
+                }
+                
+                local bucket = bucket.liquids[source]
+                local bucketName = (bucket or empty).itemname
+                if bucket and bucketName then
+                    local bucketDef = itemDefs[bucketName]
+                    
+                    minetest.unregister_item(bucketName)
+                    
+                    liquidDef.bucket = ":" .. bucketName
+                    liquidDef.bucket_desc = bucketDef.description
+                    liquidDef.bucket_images = {
+                        ("%s^waterminus_bucket_bar_1.png"):format(bucketDef.inventory_image),
+                        ("%s^waterminus_bucket_bar_2.png"):format(bucketDef.inventory_image),
+                        ("%s^waterminus_bucket_bar_3.png"):format(bucketDef.inventory_image),
+                        ("%s^waterminus_bucket_bar_4.png"):format(bucketDef.inventory_image),
+                        ("%s^waterminus_bucket_bar_5.png"):format(bucketDef.inventory_image),
+                        ("%s^waterminus_bucket_bar_6.png"):format(bucketDef.inventory_image),
+                        ("%s^waterminus_bucket_bar_7.png"):format(bucketDef.inventory_image)
+                    }
+                end
+                
+                waterminus.register_liquid(liquidDef)
+                
+                if bucket and bucketName then
+                    minetest.register_alias(bucketName, bucketName .. "_7")
+                end
+            end
+        end
+        
+        minetest.register_lbm {
+            label = "Upgrade pre-waterminus liquids",
+            name = ":waterminus:override_all",
+            nodenames = liquids,
+            run_at_every_load = false,
+            action = function (pos, node)
+                set(pos, {name = flowingAlts[node.name], param2 = 7})
+            end
+        }
+    end)
+elseif default then
     minetest.register_node("waterminus:water", {
         description = S("Finite Water"),
         tiles = {"waterminus_spring.png"},
