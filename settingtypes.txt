@@ -1,10 +1,15 @@
-# Replace regular water and lava sources with finite variants in mapgen.
+# Replace regular water and lava sources with finite variants in generation.
 waterminus_replace_mapgen (Replace mapgen water and lava) bool true
 
-# Generate oceans with an infinite 'spring' block, requires replace_mapgen.
-# May reduce performance impact.
+# Generate oceans with an infinite 'spring' block.
+# 
+# Requires: waterminus_replace_mapgen
 waterminus_ocean_springs (Infinite oceans) bool true
 
-# Enable jittering for certain fluids.
-# Ensures lakes fully even out eventually, but has a high performance impact.
+# Enable jittering for certain liquids.
+# Ensures lakes "fully" even out, but generates a lot of unnecessary updates.
 waterminus_jitter (Jittering) bool false
+
+# The time interval between waterminus updates.
+# Lower values are smoother but impact performance.
+waterminus_update_interval (Update interval) float 0.25

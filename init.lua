@@ -41,6 +41,37 @@ local updateMask = {
     {x = 0, y = 1, z = 0},
 }
 local zero = updateMask[1]
+local spreadMask = {
+    zero,
+    
+    {x = -1, y = 0, z = 0},
+    {x = 0, y = 0, z = -1},
+    {x = 1, y = 0, z = 0},
+    {x = 0, y = 0, z = 1},
+    
+    {x = -1, y = 1, z = 0},
+    {x = 0, y = 1, z = -1},
+    {x = 1, y = 1, z = 0},
+    {x = 0, y = 1, z = 1},
+    
+    {x = -2, y = 0, z = 0},
+    {x = -1, y = 0, z = -1},
+    {x = 0, y = 0, z = -2},
+    {x = 1, y = 0, z = -1},
+    {x = 2, y = 0, z = 0},
+    {x = 1, y = 0, z = 1},
+    {x = 0, y = 0, z = 2},
+    {x = -1, y = 0, z = 1},
+    
+    {x = -2, y = 1, z = 0},
+    {x = -1, y = 1, z = -1},
+    {x = 0, y = 1, z = -2},
+    {x = 1, y = 1, z = -1},
+    {x = 2, y = 1, z = 0},
+    {x = 1, y = 1, z = 1},
+    {x = 0, y = 1, z = 2},
+    {x = -1, y = 1, z = 1}
+}
 local cardinals = {
     {x = 1, z = 0},
     {x = 0, z = 1},
@@ -100,8 +131,9 @@ local function searchDrain(pos)
         queue = queue.next
     end
 end
-local function update(pos)
-    for _, vec in ipairs(updateMask) do
+local function update(pos, mask)
+    mask = mask or updateMask
+    for _, vec in ipairs(mask) do
         pos.x, pos.y, pos.z = pos.x + vec.x, pos.y + vec.y, pos.z + vec.z
         
         local node, timer = get(pos), getTimer(pos)
@@ -109,7 +141,7 @@ local function update(pos)
         local timeout = timer:get_timeout()
         
         if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= 0.49 then
-            timer:start(0.5)
+            timer:start(0.25)
         end
         
         pos.x, pos.y, pos.z = pos.x - vec.x, pos.y - vec.y, pos.z - vec.z
@@ -341,6 +373,33 @@ function waterminus.register_liquid(liquidDef)
             return
         end
         
+        --[=[local oldLevel = myLevel
+        local perm = permutations[random(1, 24)]
+        for _, i in ipairs(perm) do
+            if myLevel < 2 then break end
+            local vecA = cardinals[perm[i]]
+            pos.x, pos.z = pos.x + vecA.x, pos.z + vecA.z
+            
+            local name = get(pos).name
+            local level = getLevel(pos)
+            local def = defs[name] or empty
+            
+            if name == flowing and myLevel > level or def.floodable then
+                if def.floodable then level = 0 end
+                set(pos, {name = flowing, param2 = level + 1})
+                pos.x, pos.z = pos.x - vecA.x, pos.z - vecA.z
+                myLevel = myLevel - 1
+            else
+                if name == source then
+                    myLevel = 7
+                end
+                pos.x, pos.z = pos.x - vecA.x, pos.z - vecA.z
+            end
+        end
+        if myLevel ~= oldLevel then
+            set(pos, {name = flowing, param2 = myLevel})
+        end]=]
+        
         local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {zero, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil}
         local test = {[hash(pos)] = true}
         
@@ -453,6 +512,7 @@ function waterminus.register_liquid(liquidDef)
             
             pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
         end
+        update(pos, spreadMask)
     end
     
     if liquidDef.bucket then
@@ -778,7 +838,6 @@ if default then
         local encase = {[waterID] = true, [lavaID] = true, [springID] = true}
         
         minetest.register_alias_force("mapgen_water_source", settings:get_bool("waterminus_ocean_springs") ~= false and "waterminus:spring" or "default:water_source")
-        minetest.register_alias_force("mapgen_lava_source", lavaID)
         
         minetest.register_on_generated(function (minp, maxp, seed)
             local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
