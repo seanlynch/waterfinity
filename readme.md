@@ -26,6 +26,7 @@ waterminus.register_liquid {
     jitter = true,
     
     bucket = "waterminus:bucket_water",
+    bucket_desc = S("Finite Water Bucket"),
     bucket_images = {
         "waterminus_bucket_water_part.png^waterminus_bucket_bar_1.png",
         "waterminus_bucket_water_part.png^waterminus_bucket_bar_2.png",
@@ -40,9 +41,8 @@ waterminus.register_liquid {
 
 * `source`: Optional. The node for the 'spring' liquid. Infinite, always tries to produce more liquid, absorbs liquid from above.
 * `flowing`: The node for the finite liquid.
-
 * `drain_range`: Defaults to 3. How far thin liquid will run towards holes.
 * `jitter`: Defaults to true. Whether almost even bodies will jitter when the `Jittering` setting is enabled.
-
 * `bucket`: Optional. The prefix for bucket items to be registered for the liquid. E.G. "waterminus:bucket_water_1"
+* `bucket_desc`: The description for bucket items. E.G. "S("Finite Water Bucket")"
 * `bucket_images`: A list of bucket item textures.
