@@ -33,17 +33,11 @@ local adjacent = {
     {x = 0, y = 1, z = 0},
 }
 local updateMask = {
-    zero,
+    {x = 0, y = 0, z = 0},
     {x = -1, y = 0, z = 0},
     {x = 0, y = 0, z = -1},
     {x = 1, y = 0, z = 0},
     {x = 0, y = 0, z = 1},
-    
-    {x = 0, y = 1, z = 0},
-    {x = -1, y = 1, z = 0},
-    {x = 0, y = 1, z = -1},
-    {x = 1, y = 1, z = 0},
-    {x = 0, y = 1, z = 1},
     
     {x = -2, y = 0, z = 0},
     {x = -1, y = 0, z = -1},
@@ -53,6 +47,12 @@ local updateMask = {
     {x = 1, y = 0, z = 1},
     {x = 0, y = 0, z = 2},
     {x = -1, y = 0, z = 1},
+    
+    {x = 0, y = 1, z = 0},
+    {x = -1, y = 1, z = 0},
+    {x = 0, y = 1, z = -1},
+    {x = 1, y = 1, z = 0},
+    {x = 0, y = 1, z = 1},
     
     {x = -2, y = 1, z = 0},
     {x = -1, y = 1, z = -1},
@@ -344,10 +344,10 @@ function waterminus.register_liquid(liquidDef)
             
             if myLevel - levelGiven <= 0 then
                 set(pos, air)
-                update(pos)
             else
                 setLevel(pos, myLevel - levelGiven)
             end
+            update(pos)
             
             return
         end
@@ -357,7 +357,6 @@ function waterminus.register_liquid(liquidDef)
             local dir = (searchDrain(pos) or empty).dir
             if dir then
                 set(pos, air)
-                update(pos)
                 
                 pos.x, pos.z = pos.x + dir.x, pos.z + dir.z
                 set(pos, {name = flowing, param2 = myLevel})
@@ -475,9 +474,11 @@ function waterminus.register_liquid(liquidDef)
                     set(pos, {name = myNode.name, param2 = myLevel})
                     
                     pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
-                    set(pos, neighNode)
                     if neighLvl == 0 then
                         set(pos, air)
+                        update(pos)
+                    else
+                        set(pos, neighNode)
                     end
                     return
                 end
@@ -501,6 +502,7 @@ function waterminus.register_liquid(liquidDef)
                 set(pos, {name = flowing, param2 = level})
             elseif get(pos).name == flowing then
                 set(pos, air)
+                update(pos)
             end
             
             pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
