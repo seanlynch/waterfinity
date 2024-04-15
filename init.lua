@@ -673,7 +673,6 @@ if settings:get_bool("waterminus_override_all") then
         minetest.register_node(":" .. flowing, flowingDef)
         
         local liquidDef = {
-            source = source,
             flowing = flowing
         }
         
@@ -718,7 +717,7 @@ if settings:get_bool("waterminus_override_all") then
         label = "Upgrade pre-waterminus liquids",
         name = "waterminus:override_all",
         nodenames = liquids,
-        run_at_every_load = false,
+        run_at_every_load = true,
         action = function (pos, node)
             set(pos, {name = flowingAlts[node.name], param2 = 7})
         end
@@ -729,7 +728,7 @@ if settings:get_bool("waterminus_override_all") then
         local getName = minetest.get_name_from_content_id
         
         local airID = id("air")
-        local encase = {[id("default:water_source")] = true, [id("default:lava_source")] = true}
+        local encase = {[id("default:water_source")] = true, [id("default:lava_source")] = true, [id("default:river_water_source")] = true}
         
         minetest.register_on_generated(function (minp, maxp, seed)
             local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
@@ -743,12 +742,22 @@ if settings:get_bool("waterminus_override_all") then
                 for z = minp.z, maxp.z do
                     for y = minp.y, maxp.y do
                         local index = area:index(x, y, z)
-                        if encase[data[index]] then
+                        local liquid = data[index]
+                        
+                        local flowing = flowingAlts[getName(liquid)]
+                        flowing = flowing and id(flowing)
+                        if flowing then
+                            data[index] = flowing
+                            paramData[index] = 7
+                        end
+                        
+                        if encase[liquid] then
                             for _, vec in ipairs(naturalFlows) do
                                 local nIndex = area:index(x + vec.x, y + vec.y, z + vec.z)
+                                local below = vec.y == 0 and area:index(x + vec.x, y - 1, z + vec.z)
                                 
                                 local def = defs[getName(data[nIndex])] or empty
-                                if data[nIndex] == airID or def.liquidtype == "flowing" then
+                                if (data[nIndex] == airID or def.liquidtype == "flowing") and (vec.y ~= 0 or data[below] ~= liquid and (not flowing or data[below] ~= flowing)) then
                                     local biome = biomeMap and biomeMap[nIndex]
                                     local biomeDef = biome and minetest.registered_biomes[getBiomeName(biome)] or empty
                                     data[nIndex] = id(biomeDef.node_stone or "mapgen_stone")

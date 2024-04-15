@@ -17,5 +17,5 @@ waterminus_jitter (Jittering) bool false
 waterminus_update_interval (Update interval) float 0.25
 
 # Overrides ALL liquids into their finite variants.
-# WARNING: This setting is highly experimental!
+# WARNING: This setting is buggy, EXPERIMENTAL and makes irreversible changes to your world!
 waterminus_override_all (Override all liquid behaviours [EXPERIMENTAL]) bool false
