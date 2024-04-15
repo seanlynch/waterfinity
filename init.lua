@@ -86,6 +86,8 @@ local drain = {}
 local empty, air = {}, {name = "air"}
 local nop = function () end
 
+local updateInterval = settings:get_float("waterminus_update_interval") or 0.25
+
 local function searchDrain(pos)
     local found = {[hash(pos)] = true}
     local queue = {x = pos.x, y = pos.y, z = pos.z, depth = 0}
@@ -141,7 +143,7 @@ local function update(pos, mask)
         local timeout = timer:get_timeout()
         
         if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= 0.49 then
-            timer:start(0.25)
+            timer:start(updateInterval)
         end
         
         pos.x, pos.y, pos.z = pos.x - vec.x, pos.y - vec.y, pos.z - vec.z
