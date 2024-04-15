@@ -215,6 +215,7 @@ end
 local jitterEnabled = settings:get_bool("waterminus_jitter")
 function waterminus.register_liquid(liquidDef)
     local source, flowing = liquidDef.source, liquidDef.flowing
+    local sanitizedBucket = liquidDef.bucket and liquidDef.bucket:sub(1, 1) == ":" and liquidDef.bucket:sub(2, -1) or liquidDef.bucket
     
     if source then
         local def = defs[source]
@@ -258,7 +259,7 @@ function waterminus.register_liquid(liquidDef)
         end
         
         if liquidDef.bucket then
-            extra._waterminus_bucket = liquidDef.bucket
+            extra._waterminus_bucket = sanitizedBucket
         end
         
         minetest.override_item(source, extra)
@@ -510,14 +511,14 @@ function waterminus.register_liquid(liquidDef)
     end
     
     if liquidDef.bucket then
-        extra._waterminus_bucket = liquidDef.bucket
+        extra._waterminus_bucket = sanitizedBucket
     end
     
     minetest.override_item(flowing, extra)
     
     if bucket and liquidDef.bucket then
         for i = 1, 7 do
-            minetest.register_craftitem(liquidDef.bucket .. "_" .. i, {
+            minetest.register_craftitem(liquidDef.bucket .. (i == 7 and "" or "_" .. i), {
                 description = ("%s (%s/7)"):format(liquidDef.bucket_desc, i),
                 inventory_image = liquidDef.bucket_images[i],
                 
@@ -545,7 +546,7 @@ function waterminus.register_liquid(liquidDef)
                         return
                     end
                     if def._waterminus_source == name then
-                        return ItemStack(liquidDef.bucket .. "_7")
+                        return ItemStack(sanitizedBucket .. "_7")
                     end
                     
                     local levelTaken = min(level, 7 - i)
@@ -556,7 +557,7 @@ function waterminus.register_liquid(liquidDef)
                     end
                     update(pos)
                     
-                    return ItemStack(liquidDef.bucket .. "_" .. (i + levelTaken))
+                    return ItemStack(sanitizedBucket .. "_" .. (i + levelTaken))
                 end,
                 on_place = function(itemstack, user, pointed_thing)
                     -- Must be pointing to node
@@ -615,7 +616,7 @@ function waterminus.register_liquid(liquidDef)
                     
                     local levelGiven = node.name == liquidDef.flowing and min(i, 7 - level) or i
                     local newLevel = node.name == liquidDef.flowing and level + levelGiven or levelGiven
-                    local giveBack = i - levelGiven == 0 and "bucket:bucket_empty" or liquidDef.bucket .. "_" .. i - levelGiven
+                    local giveBack = i - levelGiven == 0 and "bucket:bucket_empty" or sanitizedBucket .. "_" .. i - levelGiven
 
                     set(lpos, {name = liquidDef.flowing, param2 = newLevel})
                     update(lpos)
@@ -623,6 +624,7 @@ function waterminus.register_liquid(liquidDef)
                 end
             })
         end
+        minetest.register_alias(sanitizedBucket .. "_7", sanitizedBucket)
     end
 end
 
@@ -645,68 +647,136 @@ end
 
 if settings:get_bool("waterminus_override_all") then
     local liquids, flowingAlts = {}, {}
-    minetest.register_on_mods_loaded(function ()
-        for source, def in pairs(defs) do
-            if def.liquidtype == "source" then
-                local flowing = def.liquid_alternative_flowing
-                liquids[#liquids + 1] = source
-                flowingAlts[source] = flowing
-                
-                -- Hack: override_item does not correctly disable engine liquid physics
-                def.liquidtype = nil
-                def.liquid_move_physics = true
-                minetest.unregister_item(source)
-                minetest.register_node(":" .. source, def)
-                
-                local flowDef = defs[flowing]
-                flowDef.liquidtype = nil
-                flowDef.liquid_move_physics = true
-                minetest.unregister_item(flowing)
-                minetest.register_node(":" .. flowing, flowDef)
-                
-                local liquidDef = {
-                    source = source,
-                    flowing = flowing
-                }
-                
-                local bucket = bucket.liquids[source]
-                local bucketName = (bucket or empty).itemname
-                if bucket and bucketName then
-                    local bucketDef = itemDefs[bucketName]
-                    
-                    minetest.unregister_item(bucketName)
-                    
-                    liquidDef.bucket = ":" .. bucketName
-                    liquidDef.bucket_desc = bucketDef.description
-                    liquidDef.bucket_images = {
-                        ("%s^waterminus_bucket_bar_1.png"):format(bucketDef.inventory_image),
-                        ("%s^waterminus_bucket_bar_2.png"):format(bucketDef.inventory_image),
-                        ("%s^waterminus_bucket_bar_3.png"):format(bucketDef.inventory_image),
-                        ("%s^waterminus_bucket_bar_4.png"):format(bucketDef.inventory_image),
-                        ("%s^waterminus_bucket_bar_5.png"):format(bucketDef.inventory_image),
-                        ("%s^waterminus_bucket_bar_6.png"):format(bucketDef.inventory_image),
-                        ("%s^waterminus_bucket_bar_7.png"):format(bucketDef.inventory_image)
-                    }
-                end
-                
-                waterminus.register_liquid(liquidDef)
-                
-                if bucket and bucketName then
-                    minetest.register_alias(bucketName, bucketName .. "_7")
-                end
-            end
+    
+    local function overrideLiquid(name)
+        assert(defs[name], name)
+        local source, flowing = defs[name].liquid_alternative_source, defs[name].liquid_alternative_flowing
+        local sourceDef, flowingDef = defs[source], defs[flowing]
+        if not sourceDef or not flowingDef then return end
+        
+        liquids[#liquids + 1] = source
+        flowingAlts[source] = flowing
+        
+        sourceDef.liquidtype = nil
+        sourceDef.liquid_range = nil
+        sourceDef.liquid_move_physics = true
+        sourceDef.move_resistance = sourceDef.liquid_viscosity or 1
+        minetest.register_node(":" .. source, sourceDef)
+        
+        flowingDef.liquidtype = nil
+        flowingDef.liquid_range = nil
+        flowingDef.liquid_move_physics = true
+        flowingDef.move_resistance = flowingDef.liquid_viscosity or 1
+        if flowingDef.groups then
+            flowingDef.groups.not_in_creative_inventory = (sourceDef.groups or empty).not_in_creative_inventory
+        end
+        minetest.register_node(":" .. flowing, flowingDef)
+        
+        local liquidDef = {
+            source = source,
+            flowing = flowing
+        }
+        
+        local bucket = bucket.liquids[source]
+        local bucketName = (bucket or empty).itemname
+        if bucket and bucketName then
+            local bucketDef = itemDefs[bucketName]
+            
+            minetest.unregister_item(bucketName)
+            
+            liquidDef.bucket = ":" .. bucketName
+            liquidDef.bucket_desc = bucketDef.description
+            liquidDef.bucket_images = {
+                ("%s^waterminus_bucket_bar_1.png"):format(bucketDef.inventory_image),
+                ("%s^waterminus_bucket_bar_2.png"):format(bucketDef.inventory_image),
+                ("%s^waterminus_bucket_bar_3.png"):format(bucketDef.inventory_image),
+                ("%s^waterminus_bucket_bar_4.png"):format(bucketDef.inventory_image),
+                ("%s^waterminus_bucket_bar_5.png"):format(bucketDef.inventory_image),
+                ("%s^waterminus_bucket_bar_6.png"):format(bucketDef.inventory_image),
+                ("%s^waterminus_bucket_bar_7.png"):format(bucketDef.inventory_image)
+            }
         end
         
-        minetest.register_lbm {
-            label = "Upgrade pre-waterminus liquids",
-            name = ":waterminus:override_all",
-            nodenames = liquids,
-            run_at_every_load = false,
-            action = function (pos, node)
-                set(pos, {name = flowingAlts[node.name], param2 = 7})
+        waterminus.register_liquid(liquidDef)
+    end
+    
+    for name, def in pairs(minetest.registered_nodes) do
+        if def.liquidtype == "source" then
+            overrideLiquid(name)
+        end
+    end
+    
+    local registerNode = minetest.register_node
+    function minetest.register_node(name, def)
+        registerNode(name, def)
+        if def.liquidtype == "source" or def.liquidtype == "flowing" then
+            overrideLiquid(name)
+        end
+    end
+    
+    minetest.register_lbm {
+        label = "Upgrade pre-waterminus liquids",
+        name = "waterminus:override_all",
+        nodenames = liquids,
+        run_at_every_load = false,
+        action = function (pos, node)
+            set(pos, {name = flowingAlts[node.name], param2 = 7})
+        end
+    }
+    
+    if default then
+        local getBiomeName, id = minetest.get_biome_name, minetest.get_content_id
+        local getName = minetest.get_name_from_content_id
+        
+        local airID = id("air")
+        local encase = {[id("default:water_source")] = true, [id("default:lava_source")] = true}
+        
+        minetest.register_on_generated(function (minp, maxp, seed)
+            local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
+            local biomeMap = minetest.get_mapgen_object("biomemap")
+            
+            local area = VoxelArea:new {MinEdge = emin, MaxEdge = emax}
+            local data = vm:get_data()
+            local paramData = vm:get_param2_data()
+            
+            for x = minp.x, maxp.x do
+                for z = minp.z, maxp.z do
+                    for y = minp.y, maxp.y do
+                        local index = area:index(x, y, z)
+                        if encase[data[index]] then
+                            for _, vec in ipairs(naturalFlows) do
+                                local nIndex = area:index(x + vec.x, y + vec.y, z + vec.z)
+                                
+                                local def = defs[getName(data[nIndex])] or empty
+                                if data[nIndex] == airID or def.liquidtype == "flowing" then
+                                    local biome = biomeMap and biomeMap[nIndex]
+                                    local biomeDef = biome and minetest.registered_biomes[getBiomeName(biome)] or empty
+                                    data[nIndex] = id(biomeDef.node_stone or "mapgen_stone")
+                                end
+                            end
+                        end
+                    end
+                end
             end
-        }
-    end)
+            
+            vm:set_data(data)
+            vm:set_param2_data(paramData)
+            vm:calc_lighting()
+            vm:write_to_map()
+            vm:update_liquids()
+        end)
+        
+        if bucket then
+            for i = 1, 7 do
+                minetest.register_craft {
+                    type = "fuel",
+                    recipe = "waterminus:bucket_lava_" .. i,
+                    burntime = 9,
+                    replacements = {{"waterminus:bucket_lava_" .. i, i == 1 and "bucket:bucket_empty" or "waterminus:bucket_lava_" .. i - 1}},
+                }
+            end
+        end
+    end
 elseif default then
     minetest.register_node("waterminus:water", {
         description = S("Finite Water"),
