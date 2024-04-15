@@ -41,37 +41,6 @@ local updateMask = {
     {x = 0, y = 1, z = 0},
 }
 local zero = updateMask[1]
-local spreadMask = {
-    zero,
-    
-    {x = -1, y = 0, z = 0},
-    {x = 0, y = 0, z = -1},
-    {x = 1, y = 0, z = 0},
-    {x = 0, y = 0, z = 1},
-    
-    {x = -1, y = 1, z = 0},
-    {x = 0, y = 1, z = -1},
-    {x = 1, y = 1, z = 0},
-    {x = 0, y = 1, z = 1},
-    
-    {x = -2, y = 0, z = 0},
-    {x = -1, y = 0, z = -1},
-    {x = 0, y = 0, z = -2},
-    {x = 1, y = 0, z = -1},
-    {x = 2, y = 0, z = 0},
-    {x = 1, y = 0, z = 1},
-    {x = 0, y = 0, z = 2},
-    {x = -1, y = 0, z = 1},
-    
-    {x = -2, y = 1, z = 0},
-    {x = -1, y = 1, z = -1},
-    {x = 0, y = 1, z = -2},
-    {x = 1, y = 1, z = -1},
-    {x = 2, y = 1, z = 0},
-    {x = 1, y = 1, z = 1},
-    {x = 0, y = 1, z = 2},
-    {x = -1, y = 1, z = 1}
-}
 local cardinals = {
     {x = 1, z = 0},
     {x = 0, z = 1},
@@ -133,16 +102,15 @@ local function searchDrain(pos)
         queue = queue.next
     end
 end
-local function update(pos, mask)
-    mask = mask or updateMask
-    for _, vec in ipairs(mask) do
+local function update(pos)
+    for _, vec in ipairs(updateMask) do
         pos.x, pos.y, pos.z = pos.x + vec.x, pos.y + vec.y, pos.z + vec.z
         
         local node, timer = get(pos), getTimer(pos)
         local def = defs[node.name] or empty
         local timeout = timer:get_timeout()
         
-        if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= 0.49 then
+        if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= updateInterval - 0.01 then
             timer:start(updateInterval)
         end
         
@@ -356,6 +324,7 @@ function waterminus.register_liquid(liquidDef)
                 update(pos)
             else
                 setLevel(pos, myLevel - levelGiven)
+                update(pos)
             end
             
             return
@@ -510,11 +479,11 @@ function waterminus.register_liquid(liquidDef)
                 set(pos, {name = flowing, param2 = level})
             elseif get(pos).name == flowing then
                 set(pos, air)
+                update(pos)
             end
             
             pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
         end
-        update(pos, spreadMask)
     end
     
     if liquidDef.bucket then
