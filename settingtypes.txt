@@ -1,21 +1,21 @@
 # Replace regular water and lava sources with finite variants in generation.
 # 
-# Requires: !waterminus_override_all
-waterminus_replace_mapgen (Replace mapgen water and lava) bool true
+# Requires: !waterfinity_override_all
+waterfinity_replace_mapgen (Replace mapgen water and lava) bool true
 
 # Generate oceans with an infinite 'spring' block.
 # 
-# Requires: waterminus_replace_mapgen, !waterminus_override_all
-waterminus_ocean_springs (Infinite oceans) bool true
+# Requires: waterfinity_replace_mapgen, !waterfinity_override_all
+waterfinity_ocean_springs (Infinite oceans) bool true
 
 # Enable jittering for certain liquids.
 # Ensures lakes "fully" even out, but generates a lot of unnecessary updates.
-waterminus_jitter (Jittering) bool false
+waterfinity_jitter (Jittering) bool false
 
-# The time interval between waterminus updates.
+# The time interval between waterfinity updates.
 # Lower values are smoother but impact performance.
-waterminus_update_interval (Update interval) float 0.25
+waterfinity_update_interval (Update interval) float 0.25
 
 # Overrides ALL liquids into their finite variants.
 # WARNING: This setting is buggy, EXPERIMENTAL and makes irreversible changes to your world!
-waterminus_override_all (Override all liquid behaviours [EXPERIMENTAL]) bool false
+waterfinity_override_all (Override all liquid behaviours [EXPERIMENTAL]) bool false
