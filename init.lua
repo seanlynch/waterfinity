@@ -1,6 +1,15 @@
-waterminus = {}
+minetest.register_alias("waterminus:water", "waterfinity:water")
+minetest.register_alias("waterminus:spring", "waterfinity:spring")
+minetest.register_alias("waterminus:lava", "waterfinity:lava")
 
-local S = minetest.get_translator("waterminus")
+for i = 1, 7 do
+    minetest.register_alias("waterminus:bucket_water_" .. i, "waterfinity:bucket_water_" .. i)
+    minetest.register_alias("waterminus:bucket_lava_" .. i, "waterfinity:bucket_lava_" .. i)
+end
+
+waterfinity = {}
+
+local S = minetest.get_translator("waterfinity")
 local settings = minetest.settings
 
 local set, get, swap, group = minetest.set_node, minetest.get_node, minetest.swap_node, minetest.get_item_group
@@ -78,7 +87,7 @@ local drain = {}
 local empty, air = {}, {name = "air"}
 local nop = function () end
 
-local updateInterval = settings:get("waterminus_update_interval") or 0.25
+local updateInterval = settings:get("waterfinity_update_interval") or 0.25
 
 local function searchDrain(pos)
     local found = {[hash(pos)] = true}
@@ -98,7 +107,7 @@ local function searchDrain(pos)
         local fName = fNode.name
         local fDef = defs[fName] or empty
         
-        local source, flowing = def._waterminus_source, def._waterminus_flowing
+        local source, flowing = def._waterfinity_source, def._waterfinity_flowing
         
         if first.depth == 0 or fDef.floodable then
             first.y = first.y - 1
@@ -108,9 +117,9 @@ local function searchDrain(pos)
             local bDef = defs[bName] or empty
             first.y = first.y + 1
             
-            if bDef.floodable or bName == def._waterminus_flowing and bLevel < 7 or bName == source then
+            if bDef.floodable or bName == def._waterfinity_flowing and bLevel < 7 or bName == source then
                 return first
-            elseif first.depth < def._waterminus_drain_range then
+            elseif first.depth < def._waterfinity_drain_range then
                 for _, vec in ipairs(cardinals) do
                     local new = {x = first.x + vec.x, y = first.y, z = first.z + vec.z, depth = first.depth + 1, dir = first.dir or vec}
                     
@@ -133,14 +142,14 @@ local function update(pos)
         local def = defs[node.name] or empty
         local timeout = timer:get_timeout()
         
-        if group(node.name, "waterminus") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= updateInterval - 0.01 then
+        if group(node.name, "waterfinity") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= updateInterval - 0.01 then
             timer:start(updateInterval)
         end
         
         pos.x, pos.y, pos.z = pos.x - vec.x, pos.y - vec.y, pos.z - vec.z
     end
 end
-waterminus.update = update
+waterfinity.update = update
 
 local function check_protection(pos, name, text)
     if minetest.is_protected(pos, name) then
@@ -156,7 +165,7 @@ local function check_protection(pos, name, text)
 end
 
 local pointSupport = minetest.features.item_specific_pointabilities
-local pointabilities = {nodes = {["group:waterminus"] = true}}
+local pointabilities = {nodes = {["group:waterfinity"] = true}}
 
 if bucket then
     local on_use = itemDefs["bucket:bucket_empty"].on_use
@@ -174,7 +183,7 @@ if bucket then
             local def = defs[name]
             local item_count = user:get_wielded_item():get_count()
             
-            if group(name, "waterminus") < 1 then
+            if group(name, "waterfinity") < 1 then
                 return on_use(itemstack, user, pointed_thing)
             end
             if check_protection(pointed_thing.under,
@@ -184,8 +193,8 @@ if bucket then
             end
             
             -- default set to return filled bucket
-            local isSource = def._waterminus_source == name
-            local giving_back = isSource and def._waterminus_bucket .. "_7" or (level == 0 and "bucket:bucket_empty" or def._waterminus_bucket .. "_" .. level)
+            local isSource = def._waterfinity_source == name
+            local giving_back = isSource and def._waterfinity_bucket .. "_7" or (level == 0 and "bucket:bucket_empty" or def._waterfinity_bucket .. "_" .. level)
 
             -- check if holding more than 1 empty bucket
             if item_count > 1 then
@@ -212,8 +221,8 @@ if bucket then
     })
 end
 
-local jitterEnabled = settings:get_bool("waterminus_jitter")
-function waterminus.register_liquid(liquidDef)
+local jitterEnabled = settings:get_bool("waterfinity_jitter")
+function waterfinity.register_liquid(liquidDef)
     local source, flowing = liquidDef.source, liquidDef.flowing
     local sanitizedBucket = liquidDef.bucket and liquidDef.bucket:sub(1, 1) == ":" and liquidDef.bucket:sub(2, -1) or liquidDef.bucket
     
@@ -222,13 +231,13 @@ function waterminus.register_liquid(liquidDef)
         local extra = {}
         
         extra.groups = def.groups or {}
-        extra.groups.waterminus = 1
+        extra.groups.waterfinity = 1
         
-        extra._waterminus_type = "source"
-        extra._waterminus_source = source
-        extra._waterminus_flowing = flowing
-        extra._waterminus_drain_range = liquidDef.drain_range or 3
-        extra._waterminus_jitter = liquidDef.jitter ~= false and jitterEnabled
+        extra._waterfinity_type = "source"
+        extra._waterfinity_source = source
+        extra._waterfinity_flowing = flowing
+        extra._waterfinity_drain_range = liquidDef.drain_range or 3
+        extra._waterfinity_jitter = liquidDef.jitter ~= false and jitterEnabled
         
         local construct = def.on_construct or nop
         extra.on_construct = function (pos, ...)
@@ -237,12 +246,12 @@ function waterminus.register_liquid(liquidDef)
         end
         
         if def.on_timer then
-            error("Cannot register a waterminus liquid with node timer!")
+            error("Cannot register a waterfinity liquid with node timer!")
         end
         extra.on_timer = function (pos)
             local myNode = get(pos)
             local myDef = defs[myNode.name]
-            local flowing = myDef._waterminus_flowing
+            local flowing = myDef._waterfinity_flowing
             
             for _, vec in ipairs(naturalFlows) do
                 pos.x, pos.y, pos.z = pos.x + vec.x, pos.y + vec.y, pos.z + vec.z
@@ -259,7 +268,7 @@ function waterminus.register_liquid(liquidDef)
         end
         
         if liquidDef.bucket then
-            extra._waterminus_bucket = sanitizedBucket
+            extra._waterfinity_bucket = sanitizedBucket
         end
         
         minetest.override_item(source, extra)
@@ -269,13 +278,13 @@ function waterminus.register_liquid(liquidDef)
     local extra = {}
     
     extra.groups = def.groups or {}
-    extra.groups.waterminus = 1
+    extra.groups.waterfinity = 1
     
-    extra._waterminus_type = "flowing"
-    extra._waterminus_source = source
-    extra._waterminus_flowing = flowing
-    extra._waterminus_drain_range = liquidDef.drain_range or 3
-    extra._waterminus_jitter = liquidDef.jitter ~= false and jitterEnabled
+    extra._waterfinity_type = "flowing"
+    extra._waterfinity_source = source
+    extra._waterfinity_flowing = flowing
+    extra._waterfinity_drain_range = liquidDef.drain_range or 3
+    extra._waterfinity_jitter = liquidDef.jitter ~= false and jitterEnabled
     
     local construct = def.on_construct or nop
     extra.on_construct = function (pos, ...)
@@ -289,7 +298,7 @@ function waterminus.register_liquid(liquidDef)
     end
     
     if def.on_timer then
-        error("Cannot register a waterminus liquid with node timer!")
+        error("Cannot register a waterfinity liquid with node timer!")
     end
     extra.on_timer = function (pos)
         local myNode = get(pos)
@@ -297,7 +306,7 @@ function waterminus.register_liquid(liquidDef)
         local myTimer = getTimer(pos)
         
         local myDef = defs[myNode.name]
-        local flowing, source = myDef._waterminus_flowing, myDef._waterminus_source
+        local flowing, source = myDef._waterfinity_flowing, myDef._waterfinity_source
         
         pos.y = pos.y - 1
         
@@ -458,7 +467,7 @@ function waterminus.register_liquid(liquidDef)
         end
         
         if maxlvl - minlvl < 2 then
-            if not def._waterminus_jitter then return end
+            if not def._waterfinity_jitter then return end
             
             local swaps = {}
             local perm = permutations[random(1, 24)]
@@ -511,7 +520,7 @@ function waterminus.register_liquid(liquidDef)
     end
     
     if liquidDef.bucket then
-        extra._waterminus_bucket = sanitizedBucket
+        extra._waterfinity_bucket = sanitizedBucket
     end
     
     minetest.override_item(flowing, extra)
@@ -537,7 +546,7 @@ function waterminus.register_liquid(liquidDef)
                     local def = defs[name]
                     local item_count = user:get_wielded_item():get_count()
                     
-                    if def._waterminus_flowing ~= liquidDef.flowing then
+                    if def._waterfinity_flowing ~= liquidDef.flowing then
                         return
                     end
                     if check_protection(pointed_thing.under,
@@ -545,7 +554,7 @@ function waterminus.register_liquid(liquidDef)
                             "take ".. name) then
                         return
                     end
-                    if def._waterminus_source == name then
+                    if def._waterfinity_source == name then
                         return ItemStack(sanitizedBucket .. "_7")
                     end
                     
@@ -610,7 +619,7 @@ function waterminus.register_liquid(liquidDef)
                     local def = defs[name]
                     local item_count = user:get_wielded_item():get_count()
                     
-                    if def._waterminus_source == name then
+                    if def._waterfinity_source == name then
                         return ItemStack("bucket:bucket_empty")
                     end
                     
@@ -645,7 +654,7 @@ minetest.check_for_falling = function (pos, ...)
     return checkFalling(pos, ...)
 end
 
-if settings:get_bool("waterminus_override_all") then
+if settings:get_bool("waterfinity_override_all") then
     local liquids, flowingAlts = {}, {}
     
     local function overrideLiquid(name)
@@ -686,17 +695,17 @@ if settings:get_bool("waterminus_override_all") then
             liquidDef.bucket = ":" .. bucketName
             liquidDef.bucket_desc = bucketDef.description
             liquidDef.bucket_images = {
-                ("%s^waterminus_bucket_bar_1.png"):format(bucketDef.inventory_image),
-                ("%s^waterminus_bucket_bar_2.png"):format(bucketDef.inventory_image),
-                ("%s^waterminus_bucket_bar_3.png"):format(bucketDef.inventory_image),
-                ("%s^waterminus_bucket_bar_4.png"):format(bucketDef.inventory_image),
-                ("%s^waterminus_bucket_bar_5.png"):format(bucketDef.inventory_image),
-                ("%s^waterminus_bucket_bar_6.png"):format(bucketDef.inventory_image),
-                ("%s^waterminus_bucket_bar_7.png"):format(bucketDef.inventory_image)
+                ("%s^waterfinity_bucket_bar_1.png"):format(bucketDef.inventory_image),
+                ("%s^waterfinity_bucket_bar_2.png"):format(bucketDef.inventory_image),
+                ("%s^waterfinity_bucket_bar_3.png"):format(bucketDef.inventory_image),
+                ("%s^waterfinity_bucket_bar_4.png"):format(bucketDef.inventory_image),
+                ("%s^waterfinity_bucket_bar_5.png"):format(bucketDef.inventory_image),
+                ("%s^waterfinity_bucket_bar_6.png"):format(bucketDef.inventory_image),
+                ("%s^waterfinity_bucket_bar_7.png"):format(bucketDef.inventory_image)
             }
         end
         
-        waterminus.register_liquid(liquidDef)
+        waterfinity.register_liquid(liquidDef)
     end
     
     for name, def in pairs(minetest.registered_nodes) do
@@ -714,8 +723,8 @@ if settings:get_bool("waterminus_override_all") then
     end
     
     minetest.register_lbm {
-        label = "Upgrade pre-waterminus liquids",
-        name = "waterminus:override_all",
+        label = "Upgrade pre-waterfinity liquids",
+        name = "waterfinity:override_all",
         nodenames = liquids,
         run_at_every_load = true,
         action = function (pos, node)
@@ -779,20 +788,20 @@ if settings:get_bool("waterminus_override_all") then
             for i = 1, 7 do
                 minetest.register_craft {
                     type = "fuel",
-                    recipe = "waterminus:bucket_lava_" .. i,
+                    recipe = "waterfinity:bucket_lava_" .. i,
                     burntime = 9,
-                    replacements = {{"waterminus:bucket_lava_" .. i, i == 1 and "bucket:bucket_empty" or "waterminus:bucket_lava_" .. i - 1}},
+                    replacements = {{"waterfinity:bucket_lava_" .. i, i == 1 and "bucket:bucket_empty" or "waterfinity:bucket_lava_" .. i - 1}},
                 }
             end
         end
     end
 elseif default then
-    minetest.register_node("waterminus:water", {
+    minetest.register_node("waterfinity:water", {
         description = S("Finite Water"),
-        tiles = {"waterminus_spring.png"},
+        tiles = {"waterfinity_spring.png"},
         special_tiles = {
             {
-                name = "waterminus_spring_animated.png",
+                name = "waterfinity_spring_animated.png",
                 backface_culling = false,
                 animation = {
                     type = "vertical_frames",
@@ -802,7 +811,7 @@ elseif default then
                 },
             },
             {
-                name = "waterminus_water_animated.png",
+                name = "waterfinity_water_animated.png",
                 backface_culling = true,
                 animation = {
                     type = "vertical_frames",
@@ -825,8 +834,8 @@ elseif default then
         move_resistance = 1,
         liquid_viscosity = 1,
         liquid_move_physics = true,
-        liquid_alternative_source = "waterminus:spring",
-        liquid_alternative_flowing = "waterminus:water",
+        liquid_alternative_source = "waterfinity:spring",
+        liquid_alternative_flowing = "waterfinity:water",
         
         post_effect_color = {r = 30, g = 70, b = 90, a = 103},
         
@@ -835,10 +844,10 @@ elseif default then
         on_blast = function (pos, intensity) end,
         sounds = default.node_sound_water_defaults()
     })
-    minetest.register_node("waterminus:spring", {
+    minetest.register_node("waterfinity:spring", {
         description = S("Finite Water Spring"),
         tiles = {{
-            name = "waterminus_spring_animated.png",
+            name = "waterfinity_spring_animated.png",
             backface_culling = false,
             animation = {
                 type = "vertical_frames",
@@ -859,8 +868,8 @@ elseif default then
         move_resistance = 1,
         liquid_viscosity = 1,
         liquid_move_physics = true,
-        liquid_alternative_source = "waterminus:spring",
-        liquid_alternative_flowing = "waterminus:water",
+        liquid_alternative_source = "waterfinity:spring",
+        liquid_alternative_flowing = "waterfinity:water",
         
         post_effect_color = {r = 30, g = 70, b = 90, a = 103},
         
@@ -868,7 +877,7 @@ elseif default then
         sounds = default.node_sound_water_defaults()
     })
 
-    minetest.register_node("waterminus:lava", {
+    minetest.register_node("waterfinity:lava", {
         description = S("Finite Lava"),
         tiles = {"default_lava.png"},
         special_tiles = {
@@ -908,7 +917,7 @@ elseif default then
         move_resistance = 7,
         liquid_viscosity = 7,
         liquid_move_physics = true,
-        liquid_alternative_flowing = "waterminus:lava",
+        liquid_alternative_flowing = "waterfinity:lava",
         
         post_effect_color = {a = 191, r = 255, g = 64, b = 0},
         damage_per_second = 8,
@@ -916,39 +925,39 @@ elseif default then
         on_blast = function (pos, intensity) end
     })
 
-    waterminus.register_liquid {
-        source = "waterminus:spring",
-        flowing = "waterminus:water",
+    waterfinity.register_liquid {
+        source = "waterfinity:spring",
+        flowing = "waterfinity:water",
         
-        bucket = "waterminus:bucket_water",
+        bucket = "waterfinity:bucket_water",
         bucket_desc = S("Finite Water Bucket"),
         
         bucket_images = {
-            "waterminus_bucket_water_part.png^waterminus_bucket_bar_1.png",
-            "waterminus_bucket_water_part.png^waterminus_bucket_bar_2.png",
-            "waterminus_bucket_water_part.png^waterminus_bucket_bar_3.png",
-            "waterminus_bucket_water_part.png^waterminus_bucket_bar_4.png",
-            "waterminus_bucket_water_part.png^waterminus_bucket_bar_5.png",
-            "waterminus_bucket_water_part.png^waterminus_bucket_bar_6.png",
-            "waterminus_bucket_water.png^waterminus_bucket_bar_7.png",
+            "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_1.png",
+            "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_2.png",
+            "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_3.png",
+            "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_4.png",
+            "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_5.png",
+            "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_6.png",
+            "waterfinity_bucket_water.png^waterfinity_bucket_bar_7.png",
         }
     }
-    waterminus.register_liquid {
-        flowing = "waterminus:lava",
+    waterfinity.register_liquid {
+        flowing = "waterfinity:lava",
         
         drain_range = 0,
         jitter = false,
         
-        bucket = "waterminus:bucket_lava",
+        bucket = "waterfinity:bucket_lava",
         bucket_desc = S("Finite Lava Bucket"),
         bucket_images = {
-            "waterminus_bucket_lava_part.png^waterminus_bucket_bar_1.png",
-            "waterminus_bucket_lava_part.png^waterminus_bucket_bar_2.png",
-            "waterminus_bucket_lava_part.png^waterminus_bucket_bar_3.png",
-            "waterminus_bucket_lava_part.png^waterminus_bucket_bar_4.png",
-            "waterminus_bucket_lava_part.png^waterminus_bucket_bar_5.png",
-            "waterminus_bucket_lava_part.png^waterminus_bucket_bar_6.png",
-            "bucket_lava.png^waterminus_bucket_bar_7.png",
+            "waterfinity_bucket_lava_part.png^waterfinity_bucket_bar_1.png",
+            "waterfinity_bucket_lava_part.png^waterfinity_bucket_bar_2.png",
+            "waterfinity_bucket_lava_part.png^waterfinity_bucket_bar_3.png",
+            "waterfinity_bucket_lava_part.png^waterfinity_bucket_bar_4.png",
+            "waterfinity_bucket_lava_part.png^waterfinity_bucket_bar_5.png",
+            "waterfinity_bucket_lava_part.png^waterfinity_bucket_bar_6.png",
+            "bucket_lava.png^waterfinity_bucket_bar_7.png",
         }
     }
     
@@ -956,25 +965,25 @@ elseif default then
         for i = 1, 7 do
             minetest.register_craft {
                 type = "fuel",
-                recipe = "waterminus:bucket_lava_" .. i,
+                recipe = "waterfinity:bucket_lava_" .. i,
                 burntime = 9,
-                replacements = {{"waterminus:bucket_lava_" .. i, i == 1 and "bucket:bucket_empty" or "waterminus:bucket_lava_" .. i - 1}},
+                replacements = {{"waterfinity:bucket_lava_" .. i, i == 1 and "bucket:bucket_empty" or "waterfinity:bucket_lava_" .. i - 1}},
             }
         end
     end
 
-    if settings:get_bool("waterminus_replace_mapgen") ~= false then
+    if settings:get_bool("waterfinity_replace_mapgen") ~= false then
         local getBiomeName, id = minetest.get_biome_name, minetest.get_content_id
         local getName = minetest.get_name_from_content_id
         
-        local waterFlowingID, waterID, springID, airID = id("default:water_flowing"), id("waterminus:water"), id("waterminus:spring"), id("air")
-        local lavaFlowingID, lavaID = id("default:lava_flowing"), id("waterminus:lava")
+        local waterFlowingID, waterID, springID, airID = id("default:water_flowing"), id("waterfinity:water"), id("waterfinity:spring"), id("air")
+        local lavaFlowingID, lavaID = id("default:lava_flowing"), id("waterfinity:lava")
         local riverWaterSrcID = id("default:river_water_source")
         
         local equivalents = {[id("default:water_source")] = waterID, [id("default:lava_source")] = lavaID}
         local encase = {[waterID] = true, [lavaID] = true, [springID] = true}
         
-        minetest.register_alias_force("mapgen_water_source", settings:get_bool("waterminus_ocean_springs") ~= false and "waterminus:spring" or "default:water_source")
+        minetest.register_alias_force("mapgen_water_source", settings:get_bool("waterfinity_ocean_springs") ~= false and "waterfinity:spring" or "default:water_source")
         
         minetest.register_on_generated(function (minp, maxp, seed)
             local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
@@ -1022,7 +1031,7 @@ elseif default then
         end)
     end
     
-    function waterminus.cool_lava(pos, node)
+    function waterfinity.cool_lava(pos, node)
         if getLevel(pos) == 7 then
             minetest.set_node(pos, {name = "default:obsidian"})
         else -- Lava flowing
@@ -1034,12 +1043,12 @@ elseif default then
     if minetest.settings:get_bool("enable_lavacooling") ~= false then
         minetest.register_abm {
             label = "Finite lava cooling",
-            nodenames = {"waterminus:lava"},
-            neighbors = {"waterminus:water", "waterminus:spring"},
+            nodenames = {"waterfinity:lava"},
+            neighbors = {"waterfinity:water", "waterfinity:spring"},
             interval = 1,
             chance = 1,
             catch_up = false,
-            action = waterminus.cool_lava,
+            action = waterfinity.cool_lava,
         }
     end
 end
@@ -1084,7 +1093,7 @@ if mesecon then
     local function node_replaceable(name)
         local nodedef = minetest.registered_nodes[name]
         
-        if group(name, "waterminus") > 0 then
+        if group(name, "waterfinity") > 0 then
             return false
         end
 
@@ -1113,7 +1122,7 @@ if mesecon then
             
             if nn and not node_replaceable(nn.name) then
                 local compress = false
-                if defs[nn.name]._waterminus_flowing == nn.name then
+                if defs[nn.name]._waterfinity_flowing == nn.name then
                     if prevLiquid and prevLiquid.name == nn.name then
                         if prevLiquid.param2 % 8 + nn.param2 % 8 <= 7 then
                             compress = true
@@ -1192,7 +1201,7 @@ if mesecon then
             if mesecon.is_mvps_stopper(n.node, movedir, nodes, id) then
                 return
             end
-            if defs[n.node.name]._waterminus_flowing == n.node.name then
+            if defs[n.node.name]._waterfinity_flowing == n.node.name then
                 -- Nasty hack
                 if pushLiquid then
                     if n.node.name ~= pushLiquid then return end

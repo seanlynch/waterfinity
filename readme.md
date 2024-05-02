@@ -1,4 +1,4 @@
-# Waterminus
+# waterfinity
 
 Finite liquids implementation for modern Minetest.
 
@@ -18,23 +18,23 @@ Finite liquids implementation for modern Minetest.
 ## API
 
 ```
-waterminus.register_liquid {
-    source = "waterminus:spring",
-    flowing = "waterminus:water",
+waterfinity.register_liquid {
+    source = "waterfinity:spring",
+    flowing = "waterfinity:water",
     
     drain_range = 3,
     jitter = true,
     
-    bucket = "waterminus:bucket_water",
+    bucket = "waterfinity:bucket_water",
     bucket_desc = S("Finite Water Bucket"),
     bucket_images = {
-        "waterminus_bucket_water_part.png^waterminus_bucket_bar_1.png",
-        "waterminus_bucket_water_part.png^waterminus_bucket_bar_2.png",
-        "waterminus_bucket_water_part.png^waterminus_bucket_bar_3.png",
-        "waterminus_bucket_water_part.png^waterminus_bucket_bar_4.png",
-        "waterminus_bucket_water_part.png^waterminus_bucket_bar_5.png",
-        "waterminus_bucket_water_part.png^waterminus_bucket_bar_6.png",
-        "waterminus_bucket_water.png^waterminus_bucket_bar_7.png",
+        "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_1.png",
+        "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_2.png",
+        "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_3.png",
+        "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_4.png",
+        "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_5.png",
+        "waterfinity_bucket_water_part.png^waterfinity_bucket_bar_6.png",
+        "waterfinity_bucket_water.png^waterfinity_bucket_bar_7.png",
     }
 }
 ```
@@ -43,6 +43,6 @@ waterminus.register_liquid {
 * `flowing`: The node for the finite liquid.
 * `drain_range`: Defaults to 3. How far thin liquid will run towards holes.
 * `jitter`: Defaults to true. Whether almost even bodies will jitter when the `Jittering` setting is enabled.
-* `bucket`: Optional. The prefix for bucket items to be registered for the liquid. E.G. "waterminus:bucket_water_1"
+* `bucket`: Optional. The prefix for bucket items to be registered for the liquid. E.G. "waterfinity:bucket_water_1"
 * `bucket_desc`: The description for bucket items. E.G. "S("Finite Water Bucket")"
 * `bucket_images`: A list of bucket item textures.
