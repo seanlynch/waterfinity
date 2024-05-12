@@ -428,7 +428,8 @@ function waterfinity.register_liquid(liquidDef)
                 set(pos, {name = flowing, param2 = myLevel})
             end
 
-            if evapInterval <= 0.0 then return end
+            -- Only evaporate if we're not on the surface of a liquid
+            if evapInterval <= 0.0 or belowDef.liquidtype then return end
 
             local evap = canEvaporate(pos)
             local meta = minetest.get_meta(pos)
@@ -440,8 +441,6 @@ function waterfinity.register_liquid(liquidDef)
                     meta:set_int("waterfinity:can_evaporate", 0)
                 end
             elseif evap then
-                -- wait 5 seconds before evaporating
-                -- TODO add some jitter, make the interval configurable
                 meta:set_int("waterfinity:can_evaporate", 1)
                 myTimer:start(5)
             end
