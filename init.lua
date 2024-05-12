@@ -292,7 +292,7 @@ function waterfinity.register_liquid(liquidDef)
                 local level = getLevel(pos)
                 local def = defs[name] or empty
 
-                if name == flowing and getLevel(pos) < 7 or (def.floodable and spreadable(pos)) then
+                if name == flowing and getLevel(pos) < 7 or def.floodable then
                     set(pos, {name = flowing, param2 = 7})
                     update(pos)
                 end
