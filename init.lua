@@ -93,10 +93,10 @@ local function getLevel(pos)
     local level = minetest.get_node_level(pos)
 
     if level == 7 and get(pos).param2 == 15 then
-	local realLevel = minetest.get_meta(pos):get_int("waterfinity:real_level")
-	if realLevel ~= 0 then
-	    return realLevel
-	end
+        local realLevel = minetest.get_meta(pos):get_int("waterfinity:real_level")
+        if realLevel ~= 0 then
+            return realLevel
+        end
     end
     return level
 end
@@ -105,10 +105,10 @@ local function setLevel(pos, level, name, downward)
     local node = get(pos)
     local pt2 = defs[node.name].paramtype2
     if downward then
-	minetest.get_meta(pos):set_int("waterfinity:real_level", level)
-	level = 15
+        minetest.get_meta(pos):set_int("waterfinity:real_level", level)
+        level = 15
     else
-	minetest.get_meta(pos):set_int("waterfinity:real_level", 0)
+        minetest.get_meta(pos):set_int("waterfinity:real_level", 0)
     end
     set(pos, {name = name or node.name, param2 = level})
 end
@@ -380,7 +380,7 @@ function waterfinity.register_liquid(liquidDef)
             local level = belowLvl + levelGiven
 
             if belowName ~= source then
-		setLevel(pos, level, flowing, true)
+                setLevel(pos, level, flowing, true)
             end
 
             pos.y = pos.y + 1
@@ -403,8 +403,20 @@ function waterfinity.register_liquid(liquidDef)
 
                 pos.x, pos.z = pos.x + dir.x, pos.z + dir.z
                 set(pos, {name = flowing, param2 = myLevel})
+            else
+                for i = 1, 4 do
+                    dir = cardinals[i]
+                    pos.x, pos.z = pos.x + dir.x, pos.z + dir.z
+                    local neighName = get(pos).name
+                    local canFlow = defs[neighName].floodable or neighName == source or (neighName == flowing and getLevel(pos) == 1)
+                    pos.x, pos.z = pos.x - dir.x, pos.z - dir.z
+                    if canFlow then
+                        -- "evaporate" as if we're spreading so that each level is < 1
+                        set(pos, air)
+                        return
+                    end
+                end
             end
-
             return
         end
 
@@ -453,8 +465,8 @@ function waterfinity.register_liquid(liquidDef)
                                 sum = sum + 7
                                 maxlvl = 7
                             elseif def.floodable and spreadable(pos) then -- don't spread over floodables over 1 away
-				minlvl = 0
-				spreads[#spreads + 1] = fullVec
+                                minlvl = 0
+                                spreads[#spreads + 1] = fullVec
                             end
 
                         end
@@ -464,8 +476,8 @@ function waterfinity.register_liquid(liquidDef)
                     sum = sum + 7
                     maxlvl = 7
                 elseif def.floodable and (renewable or spreadable(pos))then
-		    minlvl = 0
-		    spreads[#spreads + 1] = vecA
+                    minlvl = 0
+                    spreads[#spreads + 1] = vecA
                 end
             end
 
