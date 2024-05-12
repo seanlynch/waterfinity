@@ -164,6 +164,15 @@ local function check_protection(pos, name, text)
     return false
 end
 
+-- Returns if we can spread to a position based only on what's below it.
+local function spreadable(pos)
+    pos.y = pos.y - 1
+    local nodeName = get(pos).name
+    local r = (nodeName == flowing and getLevel(pos) == 7) or nodeName == source or not defs[nodeName].floodable
+    pos.y = pos.y + 1
+    return r
+end
+
 local pointSupport = minetest.features.item_specific_pointabilities
 local pointabilities = {nodes = {["group:waterfinity"] = true}}
 
@@ -375,38 +384,11 @@ function waterfinity.register_liquid(liquidDef)
             return
         end
         
-        --[=[local oldLevel = myLevel
-        local perm = permutations[random(1, 24)]
-        for _, i in ipairs(perm) do
-            if myLevel < 2 then break end
-            local vecA = cardinals[perm[i]]
-            pos.x, pos.z = pos.x + vecA.x, pos.z + vecA.z
-            
-            local name = get(pos).name
-            local level = getLevel(pos)
-            local def = defs[name] or empty
-            
-            if name == flowing and myLevel > level or def.floodable then
-                if def.floodable then level = 0 end
-                set(pos, {name = flowing, param2 = level + 1})
-                pos.x, pos.z = pos.x - vecA.x, pos.z - vecA.z
-                myLevel = myLevel - 1
-            else
-                if name == source then
-                    myLevel = 7
-                end
-                pos.x, pos.z = pos.x - vecA.x, pos.z - vecA.z
-            end
-        end
-        if myLevel ~= oldLevel then
-            set(pos, {name = flowing, param2 = myLevel})
-        end]=]
-        
         local minlvl, maxlvl, sum, spreads = myLevel, myLevel, myLevel, {zero, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil}
         local test = {[hash(pos)] = true}
         
         local perm = permutations[random(1, 24)]
-        for _, i in ipairs(perm) do
+        for i = 1, 4 do
             local vecA = cardinals[perm[i]]
             pos.x, pos.z = pos.x + vecA.x, pos.z + vecA.z
             
@@ -425,7 +407,7 @@ function waterfinity.register_liquid(liquidDef)
                     spreads[#spreads + 1] = vecA
                     
                     local perm = permutations[random(1, 24)]
-                    for _, i in ipairs(perm) do
+                    for i = 1, 4 do
                         local vecB = cardinals[perm[i]]
                         local fullVec = {x = vecA.x + vecB.x, z = vecA.z + vecB.z}
                         
@@ -446,9 +428,9 @@ function waterfinity.register_liquid(liquidDef)
                             elseif name == source then
                                 sum = sum + 7
                                 maxlvl = 7
-                            elseif def.floodable then
-                                minlvl = 0
-                                spreads[#spreads + 1] = fullVec
+                            elseif def.floodable and (renewable or spreadable(pos)) then
+				minlvl = 0
+				spreads[#spreads + 1] = fullVec
                             end
                             
                         end
@@ -457,9 +439,9 @@ function waterfinity.register_liquid(liquidDef)
                 elseif name == source then
                     sum = sum + 7
                     maxlvl = 7
-                elseif def.floodable then
-                    minlvl = 0
-                    spreads[#spreads + 1] = vecA
+                elseif def.floodable and (renewable or spreadable(pos))then
+		    minlvl = 0
+		    spreads[#spreads + 1] = vecA
                 end
             end
             
@@ -1289,3 +1271,4 @@ if mesecon then
         return true, nodes, oldstack
     end
 end
+
