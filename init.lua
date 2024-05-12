@@ -103,14 +103,13 @@ end
 
 local function setLevel(pos, level, name, downward)
     local node = get(pos)
-    local pt2 = defs[node.name].paramtype2
+    set(pos, {name = name or node.name, param2 = level})
     if downward then
 	minetest.get_meta(pos):set_int("waterfinity:real_level", level)
 	level = 15
     else
 	minetest.get_meta(pos):set_int("waterfinity:real_level", 0)
     end
-    set(pos, {name = name or node.name, param2 = level})
 end
 
 -- Returns if we can spread to a position based only on what's below it.
