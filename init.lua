@@ -93,10 +93,10 @@ local function getLevel(pos)
     local level = minetest.get_node_level(pos)
 
     if level == 7 and get(pos).param2 == 15 then
-	local realLevel = minetest.get_meta(pos):get_int("waterfinity:real_level")
-	if realLevel ~= 0 then
-	    return realLevel
-	end
+        local realLevel = minetest.get_meta(pos):get_int("waterfinity:real_level")
+        if realLevel ~= 0 then
+            return realLevel
+        end
     end
     return level
 end
@@ -105,11 +105,26 @@ local function setLevel(pos, level, name, downward)
     local node = get(pos)
     set(pos, {name = name or node.name, param2 = level})
     if downward then
-	minetest.get_meta(pos):set_int("waterfinity:real_level", level)
-	level = 15
+        minetest.get_meta(pos):set_int("waterfinity:real_level", level)
+        level = 15
     else
-	minetest.get_meta(pos):set_int("waterfinity:real_level", 0)
+        minetest.get_meta(pos):set_int("waterfinity:real_level", 0)
     end
+end
+
+local evapInterval = settings:get("waterfinity_evaporate_interval") or 5.0
+
+local function canEvaporate(pos)
+    for i = 1, 4 do
+        local vec = cardinals[i]
+        pos.x, pos.z = pos.x + vec.x, pos.z + vec.z
+        local floodable = defs[get(pos).name].floodable
+        pos.x, pos.z = pos.x - vec.x, pos.z - vec.z
+        if floodable then
+            return true
+        end
+    end
+    return false
 end
 
 -- Returns if we can spread to a position based only on what's below it.
@@ -166,6 +181,7 @@ local function searchDrain(pos)
         queue = queue.next
     end
 end
+
 local function update(pos)
     for _, vec in ipairs(updateMask) do
         pos.x, pos.y, pos.z = pos.x + vec.x, pos.y + vec.y, pos.z + vec.z
@@ -175,6 +191,14 @@ local function update(pos)
         local timeout = timer:get_timeout()
 
         if group(node.name, "waterfinity") > 0 and timeout == 0 or timeout - timer:get_elapsed() >= updateInterval - 0.01 then
+            if evapInterval > 0.0 then
+                local meta = minetest.get_meta(pos)
+                -- shouldn't evaporate unless it sits undisturbed
+                -- TODO figure out a way to move this out of the fast path
+                if meta:get_int("waterfinity:can_evaporate") == 1 then
+                    meta:set_int("waterfinity:can_evaporate", 0)
+                end
+            end
             timer:start(updateInterval)
         end
 
@@ -379,7 +403,7 @@ function waterfinity.register_liquid(liquidDef)
             local level = belowLvl + levelGiven
 
             if belowName ~= source then
-		setLevel(pos, level, flowing, true)
+                setLevel(pos, level, flowing, true)
             end
 
             pos.y = pos.y + 1
@@ -404,6 +428,23 @@ function waterfinity.register_liquid(liquidDef)
                 set(pos, {name = flowing, param2 = myLevel})
             end
 
+            if evapInterval <= 0.0 then return end
+
+            local evap = canEvaporate(pos)
+            local meta = minetest.get_meta(pos)
+            if meta:get_int("waterfinity:can_evaporate") == 1 then
+                if evap then
+                    set(pos, air)
+                    update(pos)
+                else
+                    meta:set_int("waterfinity:can_evaporate", 0)
+                end
+            elseif evap then
+                -- wait 5 seconds before evaporating
+                -- TODO add some jitter, make the interval configurable
+                meta:set_int("waterfinity:can_evaporate", 1)
+                myTimer:start(5)
+            end
             return
         end
 
@@ -463,8 +504,8 @@ function waterfinity.register_liquid(liquidDef)
                     sum = sum + 7
                     maxlvl = 7
                 elseif def.floodable and (renewable or spreadable(pos))then
-		    minlvl = 0
-		    spreads[#spreads + 1] = vecA
+                    minlvl = 0
+                    spreads[#spreads + 1] = vecA
                 end
             end
 

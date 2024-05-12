@@ -19,3 +19,7 @@ waterfinity_update_interval (Update interval) float 0.25
 # Overrides ALL liquids into their finite variants.
 # WARNING: This setting is buggy, EXPERIMENTAL and makes irreversible changes to your world!
 waterfinity_override_all (Override all liquid behaviours [EXPERIMENTAL]) bool false
+
+# Time before a liquid at level 1 will evaporate if it's next to a floodable block
+# and otherwise untouched. Set to 0 to disable evaporation.
+waterfinity_evaporate_interval (Delay before puddles start to evaporate) float 5.0
